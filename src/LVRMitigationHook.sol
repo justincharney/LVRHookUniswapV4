@@ -157,13 +157,13 @@ contract OnChainLVRMitigationHook is BaseHook {
             // How many bps one unit of sumSq buys
             // Variance ≈ v.sumSq * (ln(1.0001) ** 2)
             // ExtraFee_BPS ≈ (v.sumSq / (8 * 100,000,000)) * 10000
-            uint256 numerator = v.sumSq * 95;
-            uint256 denominator = SUMSQ_DIVISOR * 100;
-            uint256 extraCost = (numerator / denominator);
-            // Fee = MIN_FEE_BPS + extraCost
-            uint256 dynFee = MIN_FEE_BPS + extraCost;
-            // Covert Total fee from BPS to PPM
-            uint256 feePPM_unclamped = dynFee * 100; // 1 BPS = 100 PPM
+            uint256 varianceNumeratorFactor = 95 * 100; // convert to PPM
+            uint256 varianceDenominator = SUMSQ_DIVISOR * 100; // convert to PPM
+            // Fee = MIN_FEE_PPM + 0.95*variance/8 (this is why we have the 95 above)
+            uint256 totalFeeNumerator = (MIN_FEE_PPM * varianceDenominator) +
+                (v.sumSq * varianceNumeratorFactor);
+            // fee calculation to avoid issue with integer division
+            uint256 feePPM_unclamped = totalFeeNumerator / varianceDenominator;
 
             // Clamp using PPM values
             uint24 fee;
