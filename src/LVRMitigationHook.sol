@@ -2,13 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {BaseHook} from "v4-periphery/src/utils/BaseHook.sol";
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+// import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
+import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
 
 // Uniswap v4 core library reference
 // https://docs.uniswap.org/contracts/v4/reference/core/libraries/LPFeeLibrary
@@ -16,6 +18,7 @@ import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 contract OnChainLVRMitigationHook is BaseHook {
     using PoolIdLibrary for PoolKey;
     using LPFeeLibrary for uint24;
+    using StateLibrary for IPoolManager;
 
     error MustUseDynamicFee();
 
@@ -25,6 +28,7 @@ contract OnChainLVRMitigationHook is BaseHook {
     uint256 private constant LN_1_0001_Q40 = 109_945_666; // 0.000099995 * 2^40
     // minimum fee (basis-points = 1e-2 %) you are willing to charge
     uint256 private constant MIN_FEE_BPS = 10; // 10 basis points (0.1%)
+    uint24 private constant MIN_FEE_PPM = uint24(MIN_FEE_BPS * 100);
 
     // fee = MIN_FEE + GAMMA · VARIANCE/8 - tune γ with the two numbers below
     // uint256 private constant GAMMA_NUM = 5_000; // numerator
@@ -39,6 +43,9 @@ contract OnChainLVRMitigationHook is BaseHook {
 
     // Mapping from PoolId to its volatility accumulator state
     mapping(PoolId => VolAcc) internal volAccs;
+
+    // Mapping from PoolId to the fee calculated in the previous block's afterSwap, to be applied in the next beforeSwap
+    mapping(PoolId => uint24) public nextFeeToApply;
 
     constructor(IPoolManager _pm) BaseHook(_pm) {}
 
@@ -56,7 +63,7 @@ contract OnChainLVRMitigationHook is BaseHook {
                 afterAddLiquidity: false,
                 beforeRemoveLiquidity: false,
                 afterRemoveLiquidity: false,
-                beforeSwap: false,
+                beforeSwap: true,
                 afterSwap: true, // Accumulate variance, update fee proactively on block rollover
                 beforeDonate: false,
                 afterDonate: false,
@@ -67,23 +74,53 @@ contract OnChainLVRMitigationHook is BaseHook {
             });
     }
 
-    /// @inheritdoc IHooks
-    function beforeInitialize(
-        address, // sender
+    /// @inheritdoc BaseHook
+    function _beforeInitialize(
+        address,
         PoolKey calldata key,
-        uint160 // sqrtPriceX96
-    ) internal pure override returns (bytes4) {
+        uint160
+    ) internal override returns (bytes4) {
+        // Ensure the pool is initialized with the dynamic fee flag
         if (!key.fee.isDynamicFee()) revert MustUseDynamicFee();
-        return IHooks.beforeInitialize.selector;
+        // Initialize the default fee for the next block
+        nextFeeToApply[key.toId()] = MIN_FEE_PPM;
+        return BaseHook.beforeInitialize.selector;
     }
 
-    /// @inheritdoc IHooks
-    function afterSwap(
+    /// @inheritdoc BaseHook
+    function _beforeSwap(
         address, // sender
         PoolKey calldata key,
         IPoolManager.SwapParams calldata,
-        BalanceDelta
-    ) external override returns (bytes4) {
+        bytes calldata
+    ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
+        PoolId poolId = key.toId();
+        uint24 feeToUse = nextFeeToApply[poolId];
+
+        // Ensure the fee is within the range
+        if (feeToUse < MIN_FEE_PPM) {
+            feeToUse = MIN_FEE_PPM;
+        } else if (feeToUse > type(uint24).max) {
+            feeToUse = type(uint24).max;
+        }
+
+        uint24 fee = feeToUse | LPFeeLibrary.OVERRIDE_FEE_FLAG;
+
+        return (
+            BaseHook.beforeSwap.selector,
+            BeforeSwapDeltaLibrary.ZERO_DELTA,
+            fee
+        );
+    }
+
+    /// @inheritdoc BaseHook
+    function _afterSwap(
+        address, // sender
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata, // params
+        BalanceDelta, // delta
+        bytes calldata // hookData
+    ) internal override returns (bytes4, int128) {
         // Initialize accumulator for the current block
         PoolId poolId = key.toId();
         VolAcc storage v = volAccs[poolId];
@@ -91,13 +128,13 @@ contract OnChainLVRMitigationHook is BaseHook {
 
         // Get the tick after the swap from the poolManager
         // https://docs.uniswap.org/contracts/v4/guides/read-pool-state#getslot0
-        (, int24 tickAfter, , ) = StateLibrary.getSlot0(poolManager, poolId);
+        (, int24 tickAfter, , ) = poolManager.getSlot0(poolId);
 
         // First event we ever see for this pool? Initialize...
         if (v.lastBlock == 0) {
             v.lastBlock = currentBlk;
             v.lastTick = tickAfter;
-            return IHooks.afterSwap.selector;
+            return (BaseHook.afterSwap.selector, 0);
         }
 
         // Same block? accumulate realised variance
@@ -108,7 +145,6 @@ contract OnChainLVRMitigationHook is BaseHook {
             v.sumSq += uint256(dTick * dTick);
             // Update the lastTick
             v.lastTick = tickAfter;
-            return IHooks.afterSwap.selector;
         }
 
         // New block
@@ -125,14 +161,11 @@ contract OnChainLVRMitigationHook is BaseHook {
             uint256 extraCost = (var8_bps * 95) / 100;
             // Fee = MIN_FEE_BPS + extraCost
             uint256 dynFee = MIN_FEE_BPS + extraCost;
-
             // Covert Total fee from BPS to PPM
             uint256 feePPM_unclamped = dynFee * 100; // 1 BPS = 100 PPM
 
             // Clamp using PPM values
             uint24 fee;
-            uint24 MIN_FEE_PPM = uint24(MIN_FEE_BPS * 100); // Define min PPM
-
             if (feePPM_unclamped < MIN_FEE_PPM) {
                 // Check against min PPM
                 fee = MIN_FEE_PPM;
@@ -145,17 +178,18 @@ contract OnChainLVRMitigationHook is BaseHook {
                 }
             }
 
+            // Set the fee for the next block
+            nextFeeToApply[poolId] = fee;
+
             // Update the fee for the pool
-            poolManager.updateDynamicLPFee(key, fee);
+            // poolManager.updateDynamicLPFee(key, fee);
 
             // Reset accumulator for the new block
             v.sumSq = 0;
             v.lastBlock = currentBlk;
             v.lastTick = tickAfter;
-
-            return IHooks.afterSwap.selector;
         }
 
-        return IHooks.afterSwap.selector;
+        return (BaseHook.afterSwap.selector, 0);
     }
 }
