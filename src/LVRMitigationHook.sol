@@ -22,6 +22,8 @@ contract OnChainLVRMitigationHook is BaseHook {
 
     error MustUseDynamicFee();
 
+    event LogNewFee(PoolId poolId, uint256 newFee, uint256 vSumSq);
+
     // Define constants
     // ln(1.0001) using Q64 format, right shifted by 24 bits to be effectively << 40
     // THIS IS SOMEHOW RELATED TO TickMath lib, but I don't know how
@@ -29,6 +31,8 @@ contract OnChainLVRMitigationHook is BaseHook {
     // minimum fee (basis-points = 1e-2 %) you are willing to charge
     uint256 private constant MIN_FEE_BPS = 10; // 10 basis points (0.1%)
     uint24 private constant MIN_FEE_PPM = uint24(MIN_FEE_BPS * 100);
+
+    uint256 private constant SUMSQ_DIVISOR = 80_000;
 
     // fee = MIN_FEE + GAMMA · VARIANCE/8 - tune γ with the two numbers below
     // uint256 private constant GAMMA_NUM = 5_000; // numerator
@@ -150,15 +154,12 @@ contract OnChainLVRMitigationHook is BaseHook {
         // New block
         // Convert the sum of delta_tick^2 into variance and update the fee
         if (v.lastBlock < currentBlk) {
-            // Finalize variance from the PREVIOUS block
-            // varLastBlock = sum(delta_tick)^2 * (LN_1_0001_Q40 * LN_1_0001_Q40) >> (2*40)
-            uint256 sigma2_Q40 = (v.sumSq * (LN_1_0001_Q40 * LN_1_0001_Q40)) >>
-                (2 * 40);
-
-            // Convert to BPS and take 95% of LVR (variance/8)
-            uint256 var8_bps = (10_000 * sigma2_Q40) / 8;
-            // Adjust the fraction to get the desired amount of LVR as a fee increase
-            uint256 extraCost = (var8_bps * 95) / 100;
+            // How many bps one unit of sumSq buys
+            // Variance ≈ v.sumSq * (ln(1.0001) ** 2)
+            // ExtraFee_BPS ≈ (v.sumSq / (8 * 100,000,000)) * 10000
+            uint256 numerator = v.sumSq * 95;
+            uint256 denominator = SUMSQ_DIVISOR * 100;
+            uint256 extraCost = (numerator / denominator);
             // Fee = MIN_FEE_BPS + extraCost
             uint256 dynFee = MIN_FEE_BPS + extraCost;
             // Covert Total fee from BPS to PPM
@@ -179,6 +180,7 @@ contract OnChainLVRMitigationHook is BaseHook {
             }
 
             // Set the fee for the next block
+            emit LogNewFee(poolId, fee, v.sumSq);
             nextFeeToApply[poolId] = fee;
 
             // Update the fee for the pool
