@@ -14,7 +14,7 @@ import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {Constants} from "v4-core/src/../test/utils/Constants.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
-import {Counter} from "../src/Counter.sol";
+import {OnChainLVRMitigationHook} from "../src/LVRMitigationHook.sol";
 import {HookMiner} from "v4-periphery/src/utils/HookMiner.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
 import {PositionManager} from "v4-periphery/src/PositionManager.sol";
@@ -24,9 +24,10 @@ import {DeployPermit2} from "../test/utils/forks/DeployPermit2.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 import {IPositionDescriptor} from "v4-periphery/src/interfaces/IPositionDescriptor.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
+import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
 
 /// @notice Forge script for deploying v4 & hooks to **anvil**
-contract CounterScript is Script, DeployPermit2 {
+contract LVRHookScript is Script, DeployPermit2 {
     using EasyPosm for IPositionManager;
 
     address constant CREATE2_DEPLOYER =
@@ -44,17 +45,16 @@ contract CounterScript is Script, DeployPermit2 {
 
         // hook contracts must have specific flags encoded in the address
         uint160 permissions = uint160(
-            Hooks.BEFORE_SWAP_FLAG |
-                Hooks.AFTER_SWAP_FLAG |
-                Hooks.BEFORE_ADD_LIQUIDITY_FLAG |
-                Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
+            Hooks.BEFORE_INITIALIZE_FLAG |
+                Hooks.BEFORE_SWAP_FLAG |
+                Hooks.AFTER_SWAP_FLAG
         );
 
         // Mine a salt that will produce a hook address with the correct permissions
         (address hookAddress, bytes32 salt) = HookMiner.find(
             CREATE2_DEPLOYER,
             permissions,
-            type(Counter).creationCode,
+            type(OnChainLVRMitigationHook).creationCode,
             abi.encode(address(manager))
         );
 
@@ -62,10 +62,12 @@ contract CounterScript is Script, DeployPermit2 {
         // Deploy the hook using CREATE2 //
         // ----------------------------- //
         vm.broadcast();
-        Counter counter = new Counter{salt: salt}(manager);
+        OnChainLVRMitigationHook hook = new OnChainLVRMitigationHook{
+            salt: salt
+        }(manager);
         require(
-            address(counter) == hookAddress,
-            "CounterScript: hook address mismatch"
+            address(hook) == hookAddress,
+            "AnvilScript: hook address mismatch"
         );
 
         // Additional helpers for interacting with the pool
@@ -76,7 +78,7 @@ contract CounterScript is Script, DeployPermit2 {
 
         // test the lifecycle (create pool, add liquidity, swap)
         vm.startBroadcast();
-        testLifecycle(address(counter));
+        testLifecycle(address(hook));
         vm.stopBroadcast();
     }
 
@@ -162,7 +164,7 @@ contract CounterScript is Script, DeployPermit2 {
         PoolKey memory poolKey = PoolKey(
             Currency.wrap(address(token0)),
             Currency.wrap(address(token1)),
-            3000,
+            LPFeeLibrary.DYNAMIC_FEE_FLAG, // Set dynamic fee flag
             tickSpacing,
             IHooks(hook)
         );
