@@ -33,6 +33,7 @@ contract OnChainLVRMitigationHook is BaseHook {
     uint24 private constant MIN_FEE_PPM = uint24(MIN_FEE_BPS * 100);
 
     uint256 private constant SUMSQ_DIVISOR = 80_000;
+    uint256 private constant SURCHARGE_PCT = 95; // 95 % · Sigma^2/8
 
     // fee = MIN_FEE + GAMMA · VARIANCE/8 - tune γ with the two numbers below
     // uint256 private constant GAMMA_NUM = 5_000; // numerator
@@ -40,7 +41,7 @@ contract OnChainLVRMitigationHook is BaseHook {
 
     // Store the state of the pool
     struct VolAcc {
-        int24 lastTick;
+        int24 tickBefore;
         uint256 sumSq; // sum of the delta_tick^2 in the block defined by lastBlock
         uint32 lastBlock;
     }
@@ -97,8 +98,11 @@ contract OnChainLVRMitigationHook is BaseHook {
         PoolKey calldata key,
         IPoolManager.SwapParams calldata,
         bytes calldata
-    ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
         PoolId poolId = key.toId();
+        // read current tick once, store for after-swap
+        (, int24 tick, , ) = poolManager.getSlot0(poolId);
+        volAccs[poolId].tickBefore = tick;
         uint24 feeToUse = nextFeeToApply[poolId];
 
         // Ensure the fee is within the range
@@ -134,30 +138,23 @@ contract OnChainLVRMitigationHook is BaseHook {
         // https://docs.uniswap.org/contracts/v4/guides/read-pool-state#getslot0
         (, int24 tickAfter, , ) = poolManager.getSlot0(poolId);
 
+        // Calculate tick change for this swap
+        int256 dTick = int256(tickAfter) - int256(v.tickBefore);
+        uint256 dSq = uint256(dTick * dTick);
+
         // First event we ever see for this pool? Initialize...
-        if (v.lastBlock == 0) {
-            v.lastBlock = currentBlk;
-            v.lastTick = tickAfter;
-            return (BaseHook.afterSwap.selector, 0);
-        }
+        // if (v.lastBlock == 0) {
+        //     v.lastBlock = currentBlk;
+        //     v.tickBefore = tickAfter;
+        //     return (BaseHook.afterSwap.selector, 0);
+        // }
 
-        // Same block? accumulate realised variance
-        if (currentBlk == v.lastBlock) {
-            // Calculate tick change since last swap in this block
-            int256 dTick = int256(tickAfter) - int256(v.lastTick);
-            // Accumulate variance
-            v.sumSq += uint256(dTick * dTick);
-            // Update the lastTick
-            v.lastTick = tickAfter;
-        }
-
-        // New block
-        // Convert the sum of delta_tick^2 into variance and update the fee
-        if (v.lastBlock < currentBlk) {
+        // Did we roll into a new block? Finalize last block
+        if (v.lastBlock != 0 && currentBlk > v.lastBlock) {
             // How many bps one unit of sumSq buys
             // Variance ≈ v.sumSq * (ln(1.0001) ** 2)
             // ExtraFee_BPS ≈ (v.sumSq / (8 * 100,000,000)) * 10000
-            uint256 varianceNumeratorFactor = 95 * 100; // convert to PPM
+            uint256 varianceNumeratorFactor = SURCHARGE_PCT * 100; // convert to PPM
             uint256 varianceDenominator = SUMSQ_DIVISOR * 100; // convert to PPM
             // Fee = MIN_FEE_PPM + 0.95*variance/8 (this is why we have the 95 above)
             uint256 totalFeeNumerator = (MIN_FEE_PPM * varianceDenominator) +
@@ -182,15 +179,18 @@ contract OnChainLVRMitigationHook is BaseHook {
             // Set the fee for the next block
             emit LogNewFee(poolId, fee, v.sumSq);
             nextFeeToApply[poolId] = fee;
-
-            // Update the fee for the pool
-            // poolManager.updateDynamicLPFee(key, fee);
-
-            // Reset accumulator for the new block
-            v.sumSq = 0;
-            v.lastBlock = currentBlk;
-            v.lastTick = tickAfter;
         }
+
+        // start / continue the accumulator for this block
+        if (currentBlk > v.lastBlock) {
+            v.sumSq = dSq;
+            v.lastBlock = currentBlk;
+        } else {
+            v.sumSq += dSq;
+        }
+
+        // store the tick for the next trade
+        v.tickBefore = tickAfter;
 
         return (BaseHook.afterSwap.selector, 0);
     }
