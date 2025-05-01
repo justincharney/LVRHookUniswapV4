@@ -11,6 +11,8 @@ import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
+import {IERC20Minimal} from "v4-core/src/interfaces/external/IERC20Minimal.sol";
 
 // Uniswap v4 core library reference
 // https://docs.uniswap.org/contracts/v4/reference/core/libraries/LPFeeLibrary
@@ -34,6 +36,9 @@ contract OnChainLVRMitigationHook is BaseHook {
 
     uint256 private constant SUMSQ_DIVISOR = 80_000;
     uint256 private constant SURCHARGE_PCT = 95; // 95 % · Sigma^2/8
+    uint256 private constant ONE_PPM = 1e6; // 1 ppm  = 1/1 000 000
+    uint256 private constant ONE_BPS_PPM = 100; // 1 bps = 100 ppm
+    uint256 private constant TVL_SCALE = 1e4;
 
     // fee = MIN_FEE + GAMMA · VARIANCE/8 - tune γ with the two numbers below
     // uint256 private constant GAMMA_NUM = 5_000; // numerator
@@ -96,23 +101,51 @@ contract OnChainLVRMitigationHook is BaseHook {
     function _beforeSwap(
         address, // sender
         PoolKey calldata key,
-        IPoolManager.SwapParams calldata,
+        IPoolManager.SwapParams calldata params,
         bytes calldata
     ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
         PoolId poolId = key.toId();
-        // read current tick once, store for after-swap
+        // 1. read current tick once, store for after-swap
         (, int24 tick, , ) = poolManager.getSlot0(poolId);
         volAccs[poolId].tickBefore = tick;
-        uint24 feeToUse = nextFeeToApply[poolId];
+
+        // 2. "whale surcharge"
+        // size of this swap
+        uint256 size = params.amountSpecified >= 0
+            ? uint256(params.amountSpecified)
+            : uint256(-params.amountSpecified);
+
+        // TVL on the side that is being SPENT
+        address tvlToken = params.zeroForOne
+            ? Currency.unwrap(key.currency0) // paying token0
+            : Currency.unwrap(key.currency1); // paying token1
+
+        // Get the balance held by the Pool Manager contract for this pool
+        // Assuming poolManager address is available (it is via BaseHook constructor)
+        uint256 tvl = IERC20Minimal(tvlToken).balanceOf(address(poolManager));
+
+        // % of TVL in PPM
+        uint256 pctPpm = tvl == 0 ? 0 : (size * ONE_PPM) / tvl;
+
+        // quadratic surcharge, expressed in basis-points
+        // ( pctPpm / 10 000 ppm = pct / 0.01 % )²
+        // NOTE: IF THE TRANSACTION % IS LESS THAN 1% of TVL NO 'WHALE SURCHARGE' IS APPLIED
+        uint256 extraBps = (pctPpm / TVL_SCALE) ** 2;
+
+        // 3. baseline fee from variance accumulator (previous block)
+        uint256 baseFeePpm = nextFeeToApply[poolId];
+
+        // 4. add surcharge and clamp
+        uint256 feePpm = baseFeePpm + extraBps * ONE_BPS_PPM; // 1 bps = 100 ppm
 
         // Ensure the fee is within the range
-        if (feeToUse < MIN_FEE_PPM) {
-            feeToUse = MIN_FEE_PPM;
-        } else if (feeToUse > type(uint24).max) {
-            feeToUse = type(uint24).max;
+        if (feePpm < MIN_FEE_PPM) {
+            feePpm = MIN_FEE_PPM;
+        } else if (feePpm > type(uint24).max) {
+            feePpm = type(uint24).max;
         }
 
-        uint24 fee = feeToUse | LPFeeLibrary.OVERRIDE_FEE_FLAG;
+        uint24 fee = uint24(feePpm) | LPFeeLibrary.OVERRIDE_FEE_FLAG;
 
         return (
             BaseHook.beforeSwap.selector,

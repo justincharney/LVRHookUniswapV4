@@ -13,6 +13,7 @@ import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
+import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
 
 /* ───────────────────  project utilities / fixtures  ─────────────────── */
 import {Fixtures} from "./utils/Fixtures.sol";
@@ -40,6 +41,12 @@ contract LVRMitigationHookTest is Test, Fixtures {
     uint256 tokenId;
     int24 tickLower;
     int24 tickUpper;
+
+    // Swap signature can be found here: https://github.com/Uniswap/v4-core/blob/main/src/interfaces/IPoolManager.sol
+    bytes32 private constant SWAP_SIG =
+        keccak256(
+            "Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)"
+        );
 
     /* ------------------------------------------------------------------ */
     /*                               set-up                               */
@@ -112,11 +119,11 @@ contract LVRMitigationHookTest is Test, Fixtures {
     /* ------------------------------------------------------------------ */
 
     /// The hook records the minimum fee right after initialise.
-    // function testInitialFeeIsMin() public view {
-    //     assertEq(hook.nextFeeToApply(poolId), MIN_FEE_PPM);
-    // }
+    function testInitialFeeIsMin() public view {
+        assertEq(hook.nextFeeToApply(poolId), MIN_FEE_PPM);
+    }
 
-    /// After ≥2 swaps in one block and the first swap in the *next*
+    /// After ≥1 swaps in one block and the first swap in the *next*
     /// block, the hook must have raised nextFeeToApply above the minimum.
     function testFeeIncreasesAfterVariance() public {
         // -------- block N ------------------------------------------------
@@ -142,15 +149,39 @@ contract LVRMitigationHookTest is Test, Fixtures {
         assertLe(newFee, type(uint24).max);
     }
 
+    function testWhalePaysMore() public {
+        int256 whale = -25e18; // 1/4 × the TVL we seeded
+        vm.recordLogs();
+        swap(poolKey, true, whale, ZERO_BYTES);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint24 feeUsed;
+        bool foundSwapLog = false;
+        for (uint i = 0; i < logs.length; ++i) {
+            if (logs[i].topics[0] == SWAP_SIG) {
+                (, , , , , uint24 fee) = abi.decode(
+                    logs[i].data,
+                    (int128, int128, uint160, uint128, int24, uint24)
+                );
+                feeUsed = fee;
+                foundSwapLog = true;
+                break; // we found the swap we care about
+            }
+        }
+
+        assertTrue(foundSwapLog, "Swap log not found or signature mismatch");
+        assertGt(feeUsed, MIN_FEE_PPM, "whale should pay surcharge");
+    }
+
     /// A zero-variance block should *not* raise the fee.
-    // function testFeeStaysFlatWithoutVariance() public {
-    //     // do exactly one swap in block N → variance accumulator stays zero
-    //     swap(poolKey, true, -1e18, ZERO_BYTES);
+    function testFeeStaysFlatWithoutVariance() public {
+        // do one small swap in a block (1/10th of an ETH)
+        swap(poolKey, true, -1e17, ZERO_BYTES);
 
-    //     vm.roll(block.number + 1);
-    //     swap(poolKey, true, -1e18, ZERO_BYTES);
+        vm.roll(block.number + 1);
+        swap(poolKey, true, -1e17, ZERO_BYTES);
 
-    //     // fee should still be minimum (1 000 ppm)
-    //     assertEq(hook.nextFeeToApply(poolId), MIN_FEE_PPM);
-    // }
+        // fee should still be minimum (1 000 ppm)
+        assertEq(hook.nextFeeToApply(poolId), MIN_FEE_PPM);
+    }
 }
