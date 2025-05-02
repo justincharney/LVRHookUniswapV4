@@ -54,6 +54,10 @@ contract VarianceFeeHook is BaseHook {
     }
     mapping(PoolId => Pred) internal pred;
 
+    function getPred(PoolId id) external view returns (Pred memory) {
+        return pred[id];
+    }
+
     // ---------------------------------------------------------------------
     // Constructor
     // ---------------------------------------------------------------------

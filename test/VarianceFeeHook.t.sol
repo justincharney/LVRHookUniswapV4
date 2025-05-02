@@ -138,38 +138,38 @@ contract VarianceFeeHookTest is Test, Fixtures {
     }
 
     /* --------------------------------------------------------------------
-       2. Fee reconciliation: error from swap‑1 should offset swap‑2
+       2. Fee reconciliation: error from swap‑1 should be in the "carry"
     -------------------------------------------------------------------- */
-    // function testCarryReconciliation() public {
-    //     // Craft a swap that overshoots prediction by hitting price limit
-    //     vm.prank(alice);
-    //     token0.approve(address(manager), 50e18);
+    function testCarryReconciliation() public {
+        // Craft a swap the we incorrectly quote
+        BalanceDelta delta;
+        int256 SWAP = 3e18;
 
-    //     IPoolManager.SwapParams memory s1 = IPoolManager.SwapParams({
-    //         zeroForOne: true,
-    //         amountSpecified: 50e18,
-    //         sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(60), // cap after one tick
-    //         data: ""
-    //     });
+        // record tick before swap
+        (, int24 beforeTick, , ) = manager.getSlot0(poolId);
 
-    //     manager.swap(key, s1);
-    //     // record fee after swap‑1
-    //     (, , , uint24 fee1) = manager.getSlot0(key.toId());
+        // Perform the swap
+        delta = swap(poolKey, true, SWAP, ZERO_BYTES);
 
-    //     // second tiny swap just to trigger carry application
-    //     vm.prank(bob);
-    //     token0.approve(address(manager), 1e18);
-    //     IPoolManager.SwapParams memory s2 = IPoolManager.SwapParams({
-    //         zeroForOne: true,
-    //         amountSpecified: 1e18,
-    //         sqrtPriceLimitX96: 0,
-    //         data: ""
-    //     });
-    //     manager.swap(key, s2);
-    //     (, , , uint24 fee2) = manager.getSlot0(key.toId());
+        // Get the tick after the swap
+        (, int24 afterTick, , ) = manager.getSlot0(poolId);
 
-    //     // The fee on swap‑2 should differ from pure formula by the error of swap‑1
-    //     // We simply assert it is not equal to BASE_FEE meaning carry was applied
-    //     assertTrue(fee2 != BASE_FEE, "carry should modify second swap fee");
-    // }
+        // Calculate what the fee should have been
+        uint24 expectedFee = feeFromDelta(
+            int256(afterTick) - int256(beforeTick)
+        );
+
+        // Get the fee after the swap
+        (, , , uint24 lpFee) = manager.getSlot0(poolId);
+
+        // Get the carry from the swap (fee error)
+        int24 carryAmount = hook.getPred(poolId).carry;
+
+        // Assert that the fee + carry (could be +/-) is the expected fee
+        assertEq(
+            int256(uint256(lpFee)) + int256(carryAmount),
+            int256(uint256(expectedFee)),
+            "swap fee + carry should equal the expected fee (sigma^2/8)"
+        );
+    }
 }
