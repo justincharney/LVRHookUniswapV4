@@ -39,6 +39,7 @@ contract OnChainLVRMitigationHook is BaseHook {
     uint256 private constant ONE_PPM = 1e6; // 1 ppm  = 1/1 000 000
     uint256 private constant ONE_BPS_PPM = 100; // 1 bps = 100 ppm
     uint256 private constant TVL_SCALE = 1e4;
+    uint24 private constant MAX_FEE_PPM = LPFeeLibrary.MAX_LP_FEE; // 1_000_000 PPM
 
     // fee = MIN_FEE + GAMMA · VARIANCE/8 - tune γ with the two numbers below
     // uint256 private constant GAMMA_NUM = 5_000; // numerator
@@ -141,8 +142,8 @@ contract OnChainLVRMitigationHook is BaseHook {
         // Ensure the fee is within the range
         if (feePpm < MIN_FEE_PPM) {
             feePpm = MIN_FEE_PPM;
-        } else if (feePpm > type(uint24).max) {
-            feePpm = type(uint24).max;
+        } else if (feePpm > MAX_FEE_PPM) {
+            feePpm = MAX_FEE_PPM;
         }
 
         uint24 fee = uint24(feePpm) | LPFeeLibrary.OVERRIDE_FEE_FLAG;
@@ -200,13 +201,10 @@ contract OnChainLVRMitigationHook is BaseHook {
             if (feePPM_unclamped < MIN_FEE_PPM) {
                 // Check against min PPM
                 fee = MIN_FEE_PPM;
+            } else if (feePPM_unclamped > MAX_FEE_PPM) {
+                fee = MAX_FEE_PPM;
             } else {
-                // Final check against uint24 max for the PPM value
-                if (feePPM_unclamped > type(uint24).max) {
-                    fee = type(uint24).max;
-                } else {
-                    fee = uint24(feePPM_unclamped);
-                }
+                fee = uint24(feePPM_unclamped);
             }
 
             // Set the fee for the next block

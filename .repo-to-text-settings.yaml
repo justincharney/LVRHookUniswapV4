@@ -1,0 +1,9 @@
+gitignore-import-and-ignore: True
+
+ignore-content:
+  - "README.md"
+  - "LICENSE"
+  - "lib/"
+  - "broadcast/"
+  - "out/"
+  - "swaps.json"
