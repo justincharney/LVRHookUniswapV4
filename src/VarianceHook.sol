@@ -7,7 +7,13 @@ pragma solidity ^0.8.26;
  *  ‑   Formula (Constant‑Product pools):  LVR ~ sigma^2/8  of pool value
  *       with  sigma^2 ~ (Δtick * ln(1.0001))^2 / Δt.
  *  -   We charge per‑swap rather than Δt:  fee_micro_bps = ceil(C * Δtick^2)
- *       where  C = (ln(1.0001))^2 / 8 * 1e6 ~ 0.00125
+ *      where  C = (ln(1.0001))^2 / 8 * 1e6 ~ 0.00125
+ *  -   Predict fee in `_beforeSwap`, apply it immediately.
+ *  -   After the swap finalises, compute the real Δtick^2 and store
+ *      the prediction error `eps = fee_real − fee_pred`.
+ *  –   On the next swap in the same pool we add eps (can be +/‑) to
+ *      the new prediction. Over time the carry term makes LP income
+ *      track realised sigma^2/8 exactly, without on‑chain refunds.
  */
 
 import {BaseHook, PoolKey, IPoolManager, BalanceDelta} from "v4-periphery/src/utils/BaseHook.sol";
@@ -30,12 +36,23 @@ contract VarianceFeeHook is BaseHook {
     // Fee parameters (all compile‑time constants)
     // ---------------------------------------------------------------------
 
-    uint256 private constant BASE_FEE_MICRO_BPS = 5_000; // 0.05%
+    uint24 private constant BASE_FEE_MICRO_BPS = 5_000; // 0.05%
 
     // C ≈ (ln(1.0001))^2 / 8 * 1e6  ≈ 0.0012499…
     // represented as NUM / DEN to stay in uint math
     uint256 private constant C_NUM = 125; // numerator
     uint256 private constant C_DEN = 100_000; // denominator  ⇒ 125/100000 = 0.00125
+
+    // ────────────────────────────────────────────────────────────────────
+    // Prediction record per pool
+    // ────────────────────────────────────────────────────────────────────
+
+    struct Pred {
+        int24 preTick; // tick observed in _beforeSwap
+        uint24 feePred; // micro‑bps we just set for this swap
+        int24 carry; // signed micro‑bps error carried into next swap
+    }
+    mapping(PoolId => Pred) internal pred;
 
     // ---------------------------------------------------------------------
     // Constructor
@@ -62,7 +79,7 @@ contract VarianceFeeHook is BaseHook {
                 beforeRemoveLiquidity: false,
                 afterRemoveLiquidity: false,
                 beforeSwap: true, // Update dynamic fee
-                afterSwap: false,
+                afterSwap: true, // Determine fee error based on tick
                 beforeDonate: false,
                 afterDonate: false,
                 beforeSwapReturnDelta: false,
@@ -93,8 +110,9 @@ contract VarianceFeeHook is BaseHook {
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         bytes calldata /* hookData */
-    ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
         PoolId id = key.toId();
+        Pred storage p = pred[id];
 
         // ── snapshot pre‑swap state ──────────────────────────────────────
         (uint160 preSqrtX96, int24 preTick, , ) = poolManager.getSlot0(id);
@@ -130,10 +148,22 @@ contract VarianceFeeHook is BaseHook {
         uint256 dTick2 = uint256(dTick * dTick);
 
         // fee_micro_bps = BASE_FEE_MICRO_BPS + ceil(C_NUM * dTick^2 / C_DEN)
-        uint256 fee = BASE_FEE_MICRO_BPS + (dTick2 * C_NUM + C_DEN - 1) / C_DEN; // ceilDiv
-        uint24 dynFee = fee > LPFeeLibrary.MAX_LP_FEE
+        uint256 feeRaw = BASE_FEE_MICRO_BPS +
+            (dTick2 * C_NUM + C_DEN - 1) /
+            C_DEN; // ceilDiv
+
+        // apply carry (can be negative)
+        int256 f = int256(feeRaw) + p.carry;
+        uint24 dynFee = f <= 0
+            ? BASE_FEE_MICRO_BPS
+            : uint24(uint256(f)) > LPFeeLibrary.MAX_LP_FEE
             ? LPFeeLibrary.MAX_LP_FEE
-            : uint24(fee);
+            : uint24(uint256(f));
+
+        // record prediction & reset carry (will be recomputed in _afterSwap)
+        p.preTick = preTick;
+        p.feePred = dynFee;
+        p.carry = 0;
 
         // Push to PoolManager so this swap uses the new fee
         // poolManager.updateDynamicLPFee(key, dynFee);
@@ -143,5 +173,39 @@ contract VarianceFeeHook is BaseHook {
             BeforeSwapDeltaLibrary.ZERO_DELTA,
             dynFee | LPFeeLibrary.OVERRIDE_FEE_FLAG // Set the override flag
         );
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // afterSwap – realise error and store it as carry
+    // ────────────────────────────────────────────────────────────────────
+    function _afterSwap(
+        address /*sender*/,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata /*params*/,
+        BalanceDelta /*delta*/,
+        bytes calldata /*hookData*/
+    ) internal override returns (bytes4, int128) {
+        PoolId id = key.toId();
+        Pred storage p = pred[id];
+
+        // current tick (post‑swap)
+        (, int24 tick, , ) = poolManager.getSlot0(id);
+
+        // realised fee := BASE + ceil(C * Δtick^2)
+        int256 dTick = int256(tick) - int256(p.preTick);
+        uint256 realised = BASE_FEE_MICRO_BPS +
+            (uint256(dTick * dTick) * C_NUM + C_DEN - 1) /
+            C_DEN;
+
+        // prediction error eps := realised − predicted
+        int24 eps = int24(int256(realised) - int256(uint256(p.feePred)));
+        // store as carry for next swap (bounded to +/- LPFeeLibrary.MAX_LP_FEE)
+        if (eps > int24(LPFeeLibrary.MAX_LP_FEE))
+            eps = int24(LPFeeLibrary.MAX_LP_FEE);
+        if (eps < -int24(LPFeeLibrary.MAX_LP_FEE))
+            eps = -int24(LPFeeLibrary.MAX_LP_FEE);
+        p.carry = eps;
+
+        return (BaseHook.afterSwap.selector, 0);
     }
 }
