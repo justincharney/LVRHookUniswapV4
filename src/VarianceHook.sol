@@ -105,7 +105,8 @@ contract VarianceFeeHook is BaseHook {
         // ── project post‑swap sqrtPrice using swap parameters ──────────────────
         // If zeroForOne, input is amountSpecified of token0, etc.
         uint160 postSqrtX96;
-        if (params.zeroForOne) {
+        if (params.amountSpecified >= 0) {
+            // exact‑input
             postSqrtX96 = SqrtPriceMath.getNextSqrtPriceFromInput(
                 preSqrtX96,
                 liquidity,
@@ -113,10 +114,11 @@ contract VarianceFeeHook is BaseHook {
                 true
             );
         } else {
-            postSqrtX96 = SqrtPriceMath.getNextSqrtPriceFromInput(
+            // exact‑output
+            postSqrtX96 = SqrtPriceMath.getNextSqrtPriceFromOutput(
                 preSqrtX96,
                 liquidity,
-                uint256(params.amountSpecified),
+                uint256(-params.amountSpecified),
                 false
             );
         }
@@ -139,7 +141,7 @@ contract VarianceFeeHook is BaseHook {
         return (
             BaseHook.beforeSwap.selector,
             BeforeSwapDeltaLibrary.ZERO_DELTA,
-            dynFee
+            dynFee | LPFeeLibrary.OVERRIDE_FEE_FLAG // Set the override flag
         );
     }
 }
