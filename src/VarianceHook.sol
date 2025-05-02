@@ -4,11 +4,10 @@ pragma solidity ^0.8.26;
 /*
  *  Variance‑adjusted dynamic‑fee hook for Uniswap v4 constant‑product pools
  *  -----------------------------------------------------------------------
- *  ‑   Charges a fee that scales with the price impact that the current
- *      swap will cause, so the trade that realises LVR also pays for it.
- *  ‑   Keeps only 32 bytes of persistent state (last tick + timestamp).
- *  ‑   Uses a transient mapping in memory (pendingFee) to pass the per‑swap
- *      dynamic component from `beforeSwap` -> `getFee` -> `afterSwap`.
+ *  ‑   Formula (Constant‑Product pools):  LVR ~ sigma^2/8  of pool value
+ *       with  sigma^2 ~ (Δtick * ln(1.0001))^2 / Δt.
+ *  -   We charge per‑swap rather than Δt:  fee_micro_bps = ceil(C * Δtick^2)
+ *       where  C = (ln(1.0001))^2 / 8 * 1e6 ~ 0.00125
  */
 
 import {BaseHook, PoolKey, IPoolManager, BalanceDelta} from "v4-periphery/src/utils/BaseHook.sol";
@@ -28,27 +27,15 @@ contract VarianceFeeHook is BaseHook {
     error MustUseDynamicFee();
 
     // ---------------------------------------------------------------------
-    // Types & storage
-    // ---------------------------------------------------------------------
-    struct Obs {
-        int24 tick;
-        uint64 ts;
-    }
-
-    mapping(PoolId => Obs) public last;
-
-    // ---------------------------------------------------------------------
     // Fee parameters (all compile‑time constants)
     // ---------------------------------------------------------------------
 
-    // ln(1.0001) in Q128 (2‑128 fixed‑point)
-    uint256 private constant LN1_0001_X128 = 0x0171d1eccedc59;
+    uint256 private constant BASE_FEE_MICRO_BPS = 5_000; // 0.05%
 
-    // gamma = (ln1.0001)^2 / 8  (same units)  —  scales sigma^2 into LVR fraction
-    uint256 private constant GAMMA_X128 = (LN1_0001_X128 * LN1_0001_X128) / 8;
-
-    // scaling
-    uint256 private constant ONE_MICRO_BIP_X128 = (1e6) << 128; // 1e‑6 * 2^128
+    // C ≈ (ln(1.0001))^2 / 8 * 1e6  ≈ 0.0012499…
+    // represented as NUM / DEN to stay in uint math
+    uint256 private constant C_NUM = 125; // numerator
+    uint256 private constant C_DEN = 100_000; // denominator  ⇒ 125/100000 = 0.00125
 
     // ---------------------------------------------------------------------
     // Constructor
@@ -74,8 +61,8 @@ contract VarianceFeeHook is BaseHook {
                 afterAddLiquidity: false,
                 beforeRemoveLiquidity: false,
                 afterRemoveLiquidity: false,
-                beforeSwap: true,
-                afterSwap: true, // Accumulate variance, update fee proactively on block rollover
+                beforeSwap: true, // Update dynamic fee
+                afterSwap: false,
                 beforeDonate: false,
                 afterDonate: false,
                 beforeSwapReturnDelta: false,
@@ -99,7 +86,7 @@ contract VarianceFeeHook is BaseHook {
     }
 
     // ---------------------------------------------------------------------
-    // Before‑swap: estimate the price impact and cache dynamic fee
+    // Before‑swap: estimate the price impact and compute the fee in micro_bps (max fee is 1_000_000 bps)
     // ---------------------------------------------------------------------
     function _beforeSwap(
         address /*sender*/,
@@ -136,17 +123,15 @@ contract VarianceFeeHook is BaseHook {
 
         int24 postTick = TickMath.getTickAtSqrtPrice(postSqrtX96);
 
-        // ── dynamic component: gamma * (delta_tick)^2  (in Q128) ───────────────────
+        // Δtick^2
         int256 dTick = int256(postTick) - int256(preTick);
         uint256 dTick2 = uint256(dTick * dTick);
-        uint256 dynFeeX128 = GAMMA_X128 * dTick2; // Q128 LVR fraction
 
-        // convert to micro‑bps (whole numbers) then clamp
-        uint256 dynMicroBps = (dynFeeX128 + ONE_MICRO_BIP_X128 - 1) /
-            ONE_MICRO_BIP_X128; // ceilDiv
-        uint24 dynFee = dynMicroBps > LPFeeLibrary.MAX_LP_FEE
+        // fee_micro_bps = BASE_FEE_MICRO_BPS + ceil(C_NUM * dTick^2 / C_DEN)
+        uint256 fee = BASE_FEE_MICRO_BPS + (dTick2 * C_NUM + C_DEN - 1) / C_DEN; // ceilDiv
+        uint24 dynFee = fee > LPFeeLibrary.MAX_LP_FEE
             ? LPFeeLibrary.MAX_LP_FEE
-            : uint24(dynMicroBps);
+            : uint24(fee);
 
         // Push to PoolManager so this swap uses the new fee
         // poolManager.updateDynamicLPFee(key, dynFee);
@@ -156,25 +141,5 @@ contract VarianceFeeHook is BaseHook {
             BeforeSwapDeltaLibrary.ZERO_DELTA,
             dynFee
         );
-    }
-
-    // ---------------------------------------------------------------------
-    // After‑swap: book‑keeping + cleanup
-    // ---------------------------------------------------------------------
-
-    function _afterSwap(
-        address /*sender*/,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata /*params*/,
-        BalanceDelta /*delta*/,
-        bytes calldata /*hookData*/
-    ) internal override returns (bytes4, int128) {
-        PoolId id = key.toId();
-
-        // Store last tick + timestamp for background variance
-        (, int24 tick, , ) = poolManager.getSlot0(id);
-        last[id] = Obs({tick: tick, ts: uint64(block.timestamp)});
-
-        return (BaseHook.afterSwap.selector, 0);
     }
 }
