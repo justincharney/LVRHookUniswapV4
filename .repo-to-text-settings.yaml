@@ -7,3 +7,4 @@ ignore-content:
   - "broadcast/"
   - "out/"
   - "swaps.json"
+  - "storage/"

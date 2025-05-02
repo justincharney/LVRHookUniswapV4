@@ -41,6 +41,8 @@ contract OnChainLVRMitigationHook is BaseHook {
     uint256 private constant TVL_SCALE = 1e4;
     uint24 private constant MAX_FEE_PPM = LPFeeLibrary.MAX_LP_FEE; // 1_000_000 PPM
 
+    uint24 public lastFeeWithFlag; // filled in _beforeSwap
+
     // fee = MIN_FEE + GAMMA · VARIANCE/8 - tune γ with the two numbers below
     // uint256 private constant GAMMA_NUM = 5_000; // numerator
     // uint256 private constant GAMMA_DEN = 1e18; // denominator
@@ -148,6 +150,8 @@ contract OnChainLVRMitigationHook is BaseHook {
 
         uint24 fee = uint24(feePpm) | LPFeeLibrary.OVERRIDE_FEE_FLAG;
 
+        lastFeeWithFlag = fee;
+
         return (
             BaseHook.beforeSwap.selector,
             BeforeSwapDeltaLibrary.ZERO_DELTA,
@@ -224,5 +228,9 @@ contract OnChainLVRMitigationHook is BaseHook {
         v.tickBefore = tickAfter;
 
         return (BaseHook.afterSwap.selector, 0);
+    }
+
+    function getSumSq(PoolId id) external view returns (uint256) {
+        return volAccs[id].sumSq;
     }
 }

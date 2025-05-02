@@ -128,10 +128,10 @@ contract LVRMitigationHookTest is Test, Fixtures {
     function testFeeIncreasesAfterVariance() public {
         // -------- block N ------------------------------------------------
         BalanceDelta delta;
-        int256 SWAP = -1e18;
+        int256 SWAP = -2e18;
 
         delta = swap(poolKey, true, SWAP, ZERO_BYTES); // swap #1
-        //delta = swap(poolKey, true, SWAP, ZERO_BYTES); // swap #2 – now Σ(Δtick²)>0
+        delta = swap(poolKey, true, SWAP, ZERO_BYTES); // swap #2 – now Σ(Δtick²)>0
         assertEq(
             hook.nextFeeToApply(poolId),
             MIN_FEE_PPM,

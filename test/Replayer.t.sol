@@ -10,6 +10,8 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
 
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
@@ -22,6 +24,7 @@ contract Replayer is Test, Fixtures {
     using CurrencyLibrary for Currency;
     using EasyPosm for IPositionManager;
     using stdJson for string;
+    using StateLibrary for IPoolManager;
 
     /* ---------- swap struct that matches the JSON -------------- */
     struct RawSwap {
@@ -31,10 +34,24 @@ contract Replayer is Test, Fixtures {
         uint256 blockNumber;
     }
 
+    /* ---------- Metrics from the swaps -------------- */
+    struct SwapMetrics {
+        uint64 blk;
+        int128 amount0; // raw swap deltas (already returned by PoolSwapTest::swap)
+        int128 amount1;
+        uint24 feePpmApplied; // value your hook returned (after removing flag)
+        uint256 feeGrowth0X128; // cumulative LP-fees after swap
+        uint256 feeGrowth1X128;
+        uint256 varianceSumSq; // v.sumSq right after the swap
+        uint256 excessCaptured; // PPM above the 10 bps floor
+    }
+    SwapMetrics[] public swaps;
+
     /* ---------- state ------------------------------------------ */
     OnChainLVRMitigationHook hook;
     PoolKey pkey;
     uint24 constant MIN_FEE_PPM = 1_000;
+    uint256 constant Q128 = 2 ** 128;
 
     /* ---------- set-up ----------------------------------------- */
     function setUp() public {
@@ -71,7 +88,7 @@ contract Replayer is Test, Fixtures {
         /* seed full-range liquidity so swaps succeed */
         int24 low = TickMath.minUsableTick(pkey.tickSpacing);
         int24 high = TickMath.maxUsableTick(pkey.tickSpacing);
-        uint128 liq = 1e20;
+        uint128 liq = 1e23;
 
         (uint256 a0, uint256 a1) = LiquidityAmounts.getAmountsForLiquidity(
             SQRT_PRICE_1_1,
@@ -98,12 +115,12 @@ contract Replayer is Test, Fixtures {
         string memory json = vm.readFile("./swaps.json");
 
         bytes memory arr = json.parseRaw(".data.pool.swaps"); // returns the ABI-encoded array
-        RawSwap[] memory swaps = abi.decode(arr, (RawSwap[]));
+        RawSwap[] memory rswaps = abi.decode(arr, (RawSwap[]));
 
         /* 2. loop over them */
         uint256 prevBlk = block.number;
-        for (uint i; i < swaps.length; ++i) {
-            RawSwap memory s = swaps[i];
+        for (uint i; i < rswaps.length; ++i) {
+            RawSwap memory s = rswaps[i];
 
             // keep block numbers in-sync so variance/fee evolves realistically
             if (s.blockNumber > prevBlk) {
@@ -134,10 +151,16 @@ contract Replayer is Test, Fixtures {
                 ZERO_BYTES // no hook data
             );
 
+            _recordMetrics(delta, s);
+
             // just sanity-check replay integrity
             emit log_named_int("delta0", delta.amount0());
             emit log_named_int("delta1", delta.amount1());
         }
+
+        // Get the data into an output format
+        _logCapturedLVR();
+        _writeCsv();
 
         // optional assertion: final fee is at least the floor
         assertGe(hook.nextFeeToApply(pkey.toId()), MIN_FEE_PPM);
@@ -186,5 +209,67 @@ contract Replayer is Test, Fixtures {
     ) internal pure returns (int256 amt0, int256 amt1) {
         amt0 = _toSignedFixed18(a0);
         amt1 = _toSignedFixed18(a1);
+    }
+
+    /* ───────────────── INTERNALS ───────────────────────────── */
+
+    function _recordMetrics(BalanceDelta delta, RawSwap memory) internal {
+        // fee that *_beforeSwap* decided on
+        uint24 feeClean = hook.lastFeeWithFlag() &
+            LPFeeLibrary.REMOVE_OVERRIDE_MASK;
+
+        // pool-wide cumulative fee growth (state slot #3/#4)
+        (uint256 feeG0, uint256 feeG1) = StateLibrary.getFeeGrowthGlobals(
+            manager,
+            pkey.toId()
+        );
+
+        uint256 sumSq = hook.getSumSq(pkey.toId());
+
+        uint256 absIn = delta.amount0() < 0
+            ? uint256(uint128(-delta.amount0()))
+            : uint256(uint128(-delta.amount1())); // the token we paid
+        uint256 excessPpm = feeClean > MIN_FEE_PPM ? feeClean - MIN_FEE_PPM : 0;
+
+        swaps.push(
+            SwapMetrics({
+                blk: uint64(block.number),
+                amount0: delta.amount0(),
+                amount1: delta.amount1(),
+                feePpmApplied: feeClean,
+                feeGrowth0X128: feeG0,
+                feeGrowth1X128: feeG1,
+                varianceSumSq: sumSq,
+                excessCaptured: (excessPpm * absIn) / 1e6 // token-denominated
+            })
+        );
+    }
+
+    function _logCapturedLVR() internal {
+        uint256 total;
+        for (uint i; i < swaps.length; ++i) total += swaps[i].excessCaptured;
+        emit log_named_uint("Captured-LVR (token-in units)", total);
+    }
+
+    function _writeCsv() internal {
+        string memory path = "./storage/metrics.csv";
+        vm.writeFile(path, "idx,block,feePpm,sumSq\n");
+        for (uint i; i < swaps.length; ++i) {
+            vm.writeLine(
+                path,
+                string.concat(
+                    vm.toString(i),
+                    ",",
+                    vm.toString(swaps[i].blk),
+                    ",",
+                    vm.toString(swaps[i].feePpmApplied),
+                    ",",
+                    vm.toString(swaps[i].varianceSumSq)
+                )
+            );
+        }
+        emit log_string(
+            string.concat("CSV written: ", path, "  (ready for Python)")
+        );
     }
 }
