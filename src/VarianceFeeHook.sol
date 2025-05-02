@@ -166,12 +166,12 @@ contract VarianceFeeHook is BaseHook {
         p.carry = 0;
 
         // Push to PoolManager so this swap uses the new fee
-        // poolManager.updateDynamicLPFee(key, dynFee);
+        poolManager.updateDynamicLPFee(key, dynFee);
 
         return (
             BaseHook.beforeSwap.selector,
             BeforeSwapDeltaLibrary.ZERO_DELTA,
-            dynFee | LPFeeLibrary.OVERRIDE_FEE_FLAG // Set the override flag
+            dynFee // Set the override flag?
         );
     }
 
