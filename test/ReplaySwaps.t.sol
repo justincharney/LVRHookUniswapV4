@@ -43,7 +43,7 @@ contract ReplaySwaps is Test, Fixtures {
         uint160 sqrtPriceAfter;
         int24 tickBefore;
         int24 tickAfter;
-        uint24 predictedFee;
+        uint24 expectedFee;
         uint24 actualFee;
         int24 carry;
     }
@@ -204,6 +204,13 @@ contract ReplaySwaps is Test, Fixtures {
         amt1 = _toSignedFixed18(a1);
     }
 
+    function feeFromDelta(int256 dtick) internal pure returns (uint24) {
+        uint256 abs2 = uint256(dtick * dtick);
+        uint256 fee = BASE_FEE + (abs2 * 125 + 100_000 - 1) / 100_000; // ceilDiv
+        if (fee > LPFeeLibrary.MAX_LP_FEE) fee = LPFeeLibrary.MAX_LP_FEE;
+        return uint24(fee);
+    }
+
     /* ───────────────── INTERNALS ───────────────────────────── */
 
     function _recordMetrics(
@@ -215,12 +222,11 @@ contract ReplaySwaps is Test, Fixtures {
         (uint160 postSqrtPrice, int24 postTick, , uint24 postFee) = manager
             .getSlot0(poolId);
 
-        // Get data from hook
-        VarianceFeeHook.Pred memory pred = hook.getPred(poolId);
+        // Get the expected fee (what it should have been based on the delta ticks)
+        uint24 expectedFee = feeFromDelta(int256(postTick) - int256(preTick));
 
-        // Fee prediction metrics
-        uint24 predictedFee = pred.feePred;
-        int24 carry = pred.carry;
+        // Carry (fee error between expected and actual)
+        int24 carry = hook.getPred(poolId).carry;
 
         swaps.push(
             SwapMetrics({
@@ -230,7 +236,7 @@ contract ReplaySwaps is Test, Fixtures {
                 sqrtPriceAfter: postSqrtPrice,
                 tickBefore: preTick,
                 tickAfter: postTick,
-                predictedFee: predictedFee,
+                expectedFee: expectedFee,
                 actualFee: postFee,
                 carry: carry
             })
@@ -239,29 +245,14 @@ contract ReplaySwaps is Test, Fixtures {
 
     function _writeCsv() internal {
         string memory path = "./storage/metrics.csv";
-        vm.writeFile(
-            path,
-            "idx,amount0,amount1,sqrt_price_before,sqrt_price_after,tick_before,tick_after,predicted_fee,actual_fee,carry\n"
-        );
+        vm.writeFile(path, "idx,expected_fee,actual_fee,carry\n");
         for (uint i; i < swaps.length; ++i) {
             vm.writeLine(
                 path,
                 string.concat(
                     vm.toString(i),
                     ",",
-                    vm.toString(swaps[i].amount0),
-                    ",",
-                    vm.toString(swaps[i].amount1),
-                    ",",
-                    vm.toString(swaps[i].sqrtPriceBefore),
-                    ",",
-                    vm.toString(swaps[i].sqrtPriceAfter),
-                    ",",
-                    vm.toString(swaps[i].tickBefore),
-                    ",",
-                    vm.toString(swaps[i].tickAfter),
-                    ",",
-                    vm.toString(swaps[i].predictedFee),
+                    vm.toString(swaps[i].expectedFee),
                     ",",
                     vm.toString(swaps[i].actualFee),
                     ",",

@@ -158,16 +158,30 @@ contract VarianceFeeHook is BaseHook {
 
         // apply carry (can be negative)
         int256 f = int256(feeRaw) + p.carry;
-        uint24 dynFee = f <= 0
-            ? BASE_FEE_MICRO_BPS
-            : uint24(uint256(f)) > LPFeeLibrary.MAX_LP_FEE
-            ? LPFeeLibrary.MAX_LP_FEE
-            : uint24(uint256(f));
+
+        // Ensure fee never goes below BASE_FEE
+        // If f would be less than BASE_FEE, set fee to BASE_FEE and store unapplied carry
+        int24 newCarry = 0;
+        uint24 dynFee;
+
+        if (f < int256(uint256(BASE_FEE_MICRO_BPS))) {
+            // Less than BASE_FEE - set to base fee
+            // Calculate how much carry we couldn't apply
+            newCarry = int24(f - int256(uint256(BASE_FEE_MICRO_BPS)));
+            dynFee = BASE_FEE_MICRO_BPS;
+        } else if (uint256(f) > LPFeeLibrary.MAX_LP_FEE) {
+            // Above max fee - set to max and save excess as carry
+            dynFee = LPFeeLibrary.MAX_LP_FEE;
+            newCarry = int24(f - int256(uint256(LPFeeLibrary.MAX_LP_FEE)));
+        } else {
+            // Within valid range - apply as calculated
+            dynFee = uint24(uint256(f));
+        }
 
         // record prediction & reset carry (will be recomputed in _afterSwap)
         p.preTick = preTick;
         p.feePred = dynFee;
-        p.carry = 0;
+        p.carry = newCarry; // Store any carry that couldn't be applied
 
         // Push to PoolManager so this swap uses the new fee
         poolManager.updateDynamicLPFee(key, dynFee);
