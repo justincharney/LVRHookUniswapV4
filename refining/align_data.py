@@ -2,7 +2,10 @@ import json
 import pandas as pd
 
 '''
+Matches Ethereum Uniswap v3 swap events from swaps_with_timestamp.json
+with Coinbase ETH-USDC CEX price data from eth_usdc_coinbase_prices_1s.csv.
 
+Outputs swap data with corresponding CEX price.
 '''
 
 # Loads CEX data and sets timestamp as index
