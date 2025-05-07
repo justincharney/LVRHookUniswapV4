@@ -1,0 +1,16 @@
+https://thegraph.com/explorer/subgraphs/DiYPVdygkfjDWhbxGSqAQxwBKmfKnkWQojqeM2rkLb3G?view=Query&chain=arbitrum-one
+
+{
+  pool(id: "0x21c67e77068de97969ba93d4aab21826d33ca12bb9f565d8496e8fda8a82ca27") {
+    id
+    swaps(first: 10, orderBy: timestamp, orderDirection: asc, skip: 1000) {
+      amount0
+      amount1
+      sqrtPriceX96
+      timestamp
+      transaction {
+        blockNumber
+      }
+    }
+  }
+}
