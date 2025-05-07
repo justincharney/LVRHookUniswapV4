@@ -23,6 +23,8 @@ import {SqrtPriceMath} from "v4-core/src/libraries/SqrtPriceMath.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {console} from "forge-std/console.sol"; // <-- this is the missing piece
+
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
 
 /// Hook that makes every swap pay ~ sigma^2/8 of the value it moves (expected LVR)
@@ -118,11 +120,17 @@ contract VarianceFeeHook is BaseHook {
         PoolId id = key.toId();
         Pred storage p = pred[id];
 
+        console.log("Hook: beforeSwap called");
+        console.log("amountSpecified: %s", params.amountSpecified);
+        console.log("sqrtPriceLimitX96: %s", params.sqrtPriceLimitX96);
+        console.log("tickSpacing: %d", key.tickSpacing);
+        
         // ── snapshot pre‑swap state ──────────────────────────────────────
         (uint160 preSqrtX96, int24 preTick, , ) = poolManager.getSlot0(id);
 
         // ── fetch current liquidity ─────────────────────────────────────
         uint128 liquidity = poolManager.getLiquidity(id);
+        console.log("liquidity: %s", liquidity);
 
         // ── project post‑swap sqrtPrice using swap parameters ──────────────────
         // If zeroForOne, input is amountSpecified of token0, etc.
