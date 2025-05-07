@@ -9,11 +9,11 @@ Outputs swap data with corresponding CEX price.
 '''
 
 # Loads CEX data and sets timestamp as index
-cex_df = pd.read_csv("eth_usdc_coinbase_prices_1s.csv")
+cex_df = pd.read_csv("refining/eth_usdc_coinbase_prices_1s.csv")
 cex_df.set_index("cex_timestamp", inplace=True)
 
 # Loads uniswap v3 swap data
-with open("swaps_with_timestamp.json") as f:
+with open("refining/swaps_with_timestamp.json") as f:
     swap_data = json.load(f)
 
 # Extracts relevant info
@@ -36,6 +36,22 @@ for swap in swaps:
     enriched_swap = swap.copy()
     enriched_swap["cex_price"] = f"{round(cex_price, 3)}"
     enriched_swap["timestamp"] = str(timestamp)
+
+    # Filter for token type
+    try:
+        amt0 = float(swap["amount0"])
+        amt1 = float(swap["amount1"])
+    except ValueError:
+        print(f"[Warning] Invalid amounts at timestamp {timestamp}, skipping...")
+        continue
+
+    if amt0 < 0:
+        enriched_swap["token_in"] = "token0"
+    elif amt1 < 0:
+        enriched_swap["token_in"] = "token1"
+    else:
+        enriched_swap["token_in"] = "unknown"
+
     filtered_swaps.append(enriched_swap)
 
 # Maintain structure consistency
@@ -49,7 +65,7 @@ output = {
 }
 
 # Write to output file
-with open("../swaps_with_cex.json", "w") as f:
+with open("./swaps_with_cex.json", "w") as f:
     json.dump(output, f, indent=2)
 
 print(f"Wrote {len(filtered_swaps)} swaps to swaps_with_cex.json")
