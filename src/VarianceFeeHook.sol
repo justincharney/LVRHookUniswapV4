@@ -38,7 +38,7 @@ contract VarianceFeeHook is BaseHook {
     // Fee parameters (all compile‑time constants)
     // ---------------------------------------------------------------------
 
-    uint24 private constant BASE_FEE_MICRO_BPS = 5_000; // 0.05%
+    uint24 private constant BASE_FEE_MICRO_BPS = 500; // 0.05%
 
     // C ≈ (ln(1.0001))^2 / 8 * 1e6  ≈ 0.0012499…
     // represented as NUM / DEN to stay in uint math

@@ -53,7 +53,7 @@ contract ReplaySwaps is Test, Fixtures {
     VarianceFeeHook hook;
     PoolKey internal pkey;
     PoolId internal poolId;
-    uint24 internal constant BASE_FEE = 5000; // 0.05% in micro-bps
+    uint24 internal constant BASE_FEE = 500; // 0.05% in micro-bps
 
     /* ---------- set-up ----------------------------------------- */
     function setUp() public {
@@ -129,19 +129,23 @@ contract ReplaySwaps is Test, Fixtures {
                 poolId
             );
 
-            (int256 amount0, int256 amount1) = _castAmounts(
-                s.amount0,
-                s.amount1
-            );
+            // Parse amounts from JSON.
+            // amount0 is USDC (6 dec), amount1 is WETH (18 dec)
+            int256 amount0 = _stringToFixed(s.amount0, 6);
+            int256 amount1 = _stringToFixed(s.amount1, 18);
 
-            bool zeroForOne;
+            bool zeroForOne; // True if swapping USDC for WETH (selling currency0)
             int256 amountSpecified;
+            // If `amount0 < 0`: This means token0 was **removed** from the pool.
+            // From the swapper's perspective, they **received** (or bought) token0.
             if (amount0 < 0) {
-                zeroForOne = true; // selling token0, receiving token1
-                amountSpecified = amount0; // exact-in
-            } else {
+                // Selling token1, receiving token0
                 zeroForOne = false;
-                amountSpecified = amount1; // token1 exact-in
+                amountSpecified = amount1;
+            } else {
+                // Selling token0, receiving token1
+                zeroForOne = true;
+                amountSpecified = amount0;
             }
 
             // run swap through the standard helper from Fixtures
@@ -161,47 +165,64 @@ contract ReplaySwaps is Test, Fixtures {
 
     /* ---------- helpers ---------------------------------------- */
 
-    /// converts a signed decimal string (e.g. "-1084.515284")
-    /// to a signed 18-dec fixed-point int (e.g. -1084515284000000000000)
-    function _toSignedFixed18(string memory s) internal pure returns (int256) {
+    function _stringToFixed(
+        string memory s,
+        uint8 targetDecimals
+    ) internal pure returns (int256) {
         bytes memory b = bytes(s);
-        bool neg;
-        uint256 intPart;
-        uint256 fracPart;
-        uint8 fracLen;
+        if (b.length == 0) return 0;
 
-        for (uint i; i < b.length; ++i) {
-            bytes1 c = b[i];
+        bool negative = false;
+        uint ptr = 0;
+        if (b[ptr] == "-") {
+            negative = true;
+            ptr++;
+        } else if (b[ptr] == "+") {
+            ptr++;
+        }
 
-            if (c == "-") {
-                neg = true;
-            } else if (c == ".") {
-                fracLen = 1; // start counting decimals > 0 means “we’re inside the fraction”
-            } else {
-                uint8 d = uint8(c) - 48; // ascii → 0-9
-                if (fracLen == 0) {
-                    intPart = intPart * 10 + d;
-                } else if (fracLen <= 18) {
-                    // keep at most 18 dp
-                    fracPart = fracPart * 10 + d;
-                    ++fracLen;
+        uint256 intPart = 0;
+        uint256 fracPart = 0;
+        uint8 fracDigits = 0;
+        bool inFraction = false;
+
+        for (uint i = ptr; i < b.length; i++) {
+            if (b[i] == ".") {
+                if (inFraction) break;
+                inFraction = true;
+                continue;
+            }
+            if (b[i] < "0" || b[i] > "9") break;
+
+            uint8 digit = uint8(b[i]) - 48;
+            if (inFraction) {
+                if (fracDigits < targetDecimals) {
+                    // Read up to targetDecimals
+                    fracPart = fracPart * 10 + digit;
+                    fracDigits++;
+                } else if (fracDigits < 18) {
+                    // if target is < 18, but more are provided, just count them
+                    fracDigits++; // to correctly scale down later if target < actual
                 }
+            } else {
+                intPart = intPart * 10 + digit;
             }
         }
 
-        // left-pad the fraction to 18 dp
-        while (fracLen++ < 19) fracPart *= 10;
+        uint256 scaledValue = intPart * (10 ** targetDecimals);
 
-        int256 fixed18 = int256(intPart * 1e18 + fracPart);
-        return neg ? -fixed18 : fixed18;
-    }
+        if (fracDigits > 0) {
+            if (fracDigits < targetDecimals) {
+                fracPart *= (10 ** (targetDecimals - fracDigits));
+            } else if (fracDigits > targetDecimals) {
+                // If more fractional digits were provided than target, truncate/round down
+                fracPart /= (10 ** (fracDigits - targetDecimals));
+            }
+            scaledValue += fracPart;
+        }
 
-    function _castAmounts(
-        string memory a0,
-        string memory a1
-    ) internal pure returns (int256 amt0, int256 amt1) {
-        amt0 = _toSignedFixed18(a0);
-        amt1 = _toSignedFixed18(a1);
+        int256 result = int256(scaledValue);
+        return negative ? -result : result;
     }
 
     function feeFromDelta(int256 dtick) internal pure returns (uint24) {
