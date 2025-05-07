@@ -115,7 +115,7 @@ contract ReplaySwaps is Test, Fixtures {
     /* ---------- the actual replay test ------------------------- */
     function test_replaySwaps() public {
         /* 1. read file */
-        string memory json = vm.readFile("./swaps.json");
+        string memory json = vm.readFile("./swaps-v4.json");
 
         bytes memory arr = json.parseRaw(".data.pool.swaps"); // returns the ABI-encoded array
         RawSwap[] memory rswaps = abi.decode(arr, (RawSwap[]));
@@ -130,11 +130,11 @@ contract ReplaySwaps is Test, Fixtures {
             );
 
             // Parse amounts from JSON.
-            // amount0 is USDC (6 dec), amount1 is WETH (18 dec)
-            int256 amount0 = _stringToFixed(s.amount0, 6);
-            int256 amount1 = _stringToFixed(s.amount1, 18);
+            // amount0 is WETH (18 dec), amount1 is USDC (6 dec),
+            int256 amount0 = _stringToFixed(s.amount0, 18);
+            int256 amount1 = _stringToFixed(s.amount1, 6);
 
-            bool zeroForOne; // True if swapping USDC for WETH (selling currency0)
+            bool zeroForOne; // True if swapping WETH for USDC (selling currency0)
             int256 amountSpecified;
             // If `amount0 < 0`: This means token0 was **removed** from the pool.
             // From the swapper's perspective, they **received** (or bought) token0.
