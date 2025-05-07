@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import "forge-std/StdJson.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+
 
 interface IUniswapV3Pool {
     function token0() external view returns (address);
@@ -28,7 +30,7 @@ contract PoolParamExtractor is Test {
         address POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640; // USDC/WETH 0.05% pool
 
         // IUniswapV3Pool target = IUniswapV3Pool(pool);
-        uint numBlocks = 20;
+        uint numBlocks = 100;
         uint256 startBlock = 12376891;
         
         string memory key = vm.envString("INFURA_KEY");
@@ -49,15 +51,17 @@ contract PoolParamExtractor is Test {
             uint24 fee = target.fee();
             int24 tickSpacing = target.tickSpacing();
             uint128 liquidity = target.liquidity();
-            (uint160 sqrtPriceX96, int24 tick,,,,,) = target.slot0();
+            ( , int24 tick,,,,,) = target.slot0();
+
+            uint160 computedSqrtPriceX96 = TickMath.getSqrtPriceAtTick(tick);
 
             string memory obj = "config";
             vm.serializeAddress(obj, "token0", token0);
             vm.serializeAddress(obj, "token1", token1);
             vm.serializeUint(obj, "fee", fee);
             vm.serializeInt(obj, "tickSpacing", tickSpacing);
-            vm.serializeUint(obj, "sqrtPriceX96", sqrtPriceX96);
             vm.serializeInt(obj, "tick", tick);
+            vm.serializeUint(obj, "sqrtPriceX96", computedSqrtPriceX96);
             vm.serializeUint(obj, "liquidity", liquidity);
             string memory configJson = vm.serializeString(obj, "poolAddress", vm.toString(POOL));
 
