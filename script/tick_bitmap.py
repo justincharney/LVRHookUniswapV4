@@ -1,34 +1,22 @@
 import asyncio
 import json
-from web3 import AsyncWeb3, AsyncHTTPProvider, Web3 # Need Web3 for keccak sync
+import os
+from web3 import AsyncWeb3, AsyncHTTPProvider, Web3
 from eth_abi.packed import encode_packed
 from eth_typing import HexStr
-from typing import Dict
-from eth_abi import encode
 
 # --- Configuration ---
 RPC = "https://eth.drpc.org"
 POOLMAN_ADDR = "0x000000000004444c5dc75cB358380D2e3dE08A90"
 POOL_ID_HEX = "0x21c67e77068de97969ba93d4aab21826d33ca12bb9f565d8496e8fda8a82ca27"
-BLOCK = 21_763_859
 SPACING = 10
 CONCURRENCY = 100
-
-# --- Constants based on V4 Layout ---
-POOLS_MAPPING_SLOT_INDEX = 6
-TICK_BITMAP_OFFSET = 5 # Pool.State.tickBitmap offset
-TICKS_OFFSET = 4 # Pool.State.ticks offset
-
-FILE_BITMAP = "bitmap_snapshot.json"
+SWAPS_FILE = "swaps-v4.json"
 
 w3_async = AsyncWeb3(AsyncHTTPProvider(RPC))
-w3_sync = Web3() # For keccak
+w3_sync = Web3()
 
-# --- Helper Functions ---
 def calculate_mapping_slot(key_hex, mapping_slot_index) -> HexStr:
-    """Calculates storage slot for a mapping key."""
-    # Ensure key is hex string without 0x, pad if needed? Abi encode needs types.
-    # PoolId is bytes32, slot index is uint256 (represented as bytes32 in packed)
     key_bytes = bytes.fromhex(key_hex[2:])
     slot_bytes = mapping_slot_index.to_bytes(32, 'big')
     encoded = encode_packed(['bytes32', 'bytes32'], [key_bytes, slot_bytes])
@@ -36,136 +24,94 @@ def calculate_mapping_slot(key_hex, mapping_slot_index) -> HexStr:
     return HexStr(slot_hash.hex())
 
 def calculate_nested_mapping_slot(key, mapping_base_slot_hex) -> HexStr:
-    """Calculates slot for key within a mapping already located at mapping_base_slot_hex."""
-    # Key type depends: int16 for bitmap word, int24 for tick
-    # Pad key to 32 bytes for encoding
-    if isinstance(key, int):
-       key_bytes = key.to_bytes(32, 'big', signed=True) # Use signed for int16/int24
-    else:
-       raise TypeError("Key must be integer for tick/wordPos")
-
+    key_bytes = key.to_bytes(32, 'big', signed=True)
     base_slot_bytes = bytes.fromhex(mapping_base_slot_hex[2:])
     encoded = encode_packed(['bytes32', 'bytes32'], [key_bytes, base_slot_bytes])
-    slot_hash = w3_sync.keccak(encoded)
-    return HexStr(slot_hash.hex())
+    return HexStr(w3_sync.keccak(encoded).hex())
 
 def decode_tickinfo_slot0(slot0_bytes: bytes) -> tuple[int, int]:
-    """Decodes liquidityNet (int128) and liquidityGross (uint128) from TickInfo slot 0."""
-    liq_net_bytes = slot0_bytes[:16] # Upper 16 bytes
-    liq_gross_bytes = slot0_bytes[16:] # Lower 16 bytes
-    liq_net = int.from_bytes(liq_net_bytes, 'big', signed=True)
-    liq_gross = int.from_bytes(liq_gross_bytes, 'big', signed=False)
-    return liq_net, liq_gross # Note: Solidity struct might have gross as int96, but slot is 128 bits
+    return (
+        int.from_bytes(slot0_bytes[:16], 'big', signed=True),
+        int.from_bytes(slot0_bytes[16:], 'big')
+    )
 
-# --- Main Logic ---
-async def main():
-    print("Calculating base slots...")
-    pool_state_base_slot = calculate_mapping_slot(POOL_ID_HEX, POOLS_MAPPING_SLOT_INDEX)
-    print(f"Pool State Base Slot (S): {pool_state_base_slot}")
+async def snapshot_at_block(block: int, tick_bitmap_base, ticks_base, all_bitmaps, all_ticks):
+    block_str = str(block)
+    if block_str in all_bitmaps and block_str in all_ticks:
+        print(f"Skipping block {block} (already cached)")
+        return
 
-    tick_bitmap_mapping_base_slot_int = int(pool_state_base_slot, 16) + TICK_BITMAP_OFFSET
-    tick_bitmap_mapping_base_slot = HexStr(hex(tick_bitmap_mapping_base_slot_int))
-    print(f"Tick Bitmap Mapping Base Slot (S + {TICK_BITMAP_OFFSET}): {tick_bitmap_mapping_base_slot}")
-
-    ticks_mapping_base_slot_int = int(pool_state_base_slot, 16) + TICKS_OFFSET
-    ticks_mapping_base_slot = HexStr(hex(ticks_mapping_base_slot_int))
-    print(f"Ticks Mapping Base Slot (S + {TICKS_OFFSET}): {ticks_mapping_base_slot}")
-
-
-    # 1. Fetch Bitmap words
-    print("Fetching tick bitmap words...")
-    # The tick index i can be calculated taking the log, as i = log_{1.0001}(2^128) = 887272.7517970635.
-    # This is why the maximum tick is 887272.
+    print(f"Processing block {block}...")
     minW = -887272 // SPACING // 256
     maxW =  887272 // SPACING // 256
-    print(f"Word range: {minW} to {maxW}")
-
-    bitmap_word_values = {} # Store wordPos -> value
-    tasks = []
-    semaphore = asyncio.Semaphore(CONCURRENCY) # Limit concurrent requests
+    bitmap_word_values = {}
+    semaphore = asyncio.Semaphore(CONCURRENCY)
 
     async def fetch_bitmap_word(word):
         async with semaphore:
-            slot = calculate_nested_mapping_slot(word, tick_bitmap_mapping_base_slot)
-            value_bytes = await w3_async.eth.get_storage_at(POOLMAN_ADDR, slot, block_identifier=BLOCK)
-            value_int = int.from_bytes(value_bytes, 'big')
-            if value_int != 0:
-                 bitmap_word_values[word] = value_int
-            # print(f"Word {word}: {'Non-zero' if value_int != 0 else 'Zero'}") # Verbose
+            slot = calculate_nested_mapping_slot(word, tick_bitmap_base)
+            val_bytes = await w3_async.eth.get_storage_at(POOLMAN_ADDR, slot, block_identifier=block)
+            val = int.from_bytes(val_bytes, 'big')
+            if val != 0:
+                bitmap_word_values[word] = val
 
-    for word in range(minW, maxW + 1):
-        tasks.append(fetch_bitmap_word(word))
+    await asyncio.gather(*(fetch_bitmap_word(w) for w in range(minW, maxW + 1)))
+    all_bitmaps[block_str] = {str(k): hex(v) for k, v in bitmap_word_values.items()}
+    with open("bitmap_snapshot.json", "w") as f:
+        json.dump(all_bitmaps, f, indent=2)
 
-    await asyncio.gather(*tasks)
-    print(f"Found {len(bitmap_word_values)} non-zero bitmap words.")
-    bitmap_data_to_save = [{"wordPos": k, "value": hex(v)} for k, v in bitmap_word_values.items()]
-    bitmap_data_to_save.sort(key=lambda x: x['wordPos']) # Sort for consistency
-    bitmap_data_to_save = {str(k): hex(v) for k, v in bitmap_word_values.items()}
-    with open(FILE_BITMAP, "w") as f:
-        json.dump(bitmap_data_to_save, f, indent=2)
-    print(f"Saved bitmap data to {FILE_BITMAP}")
-
-    # 2. Find Initialized Ticks
     initialized_ticks = []
     for word, bits in bitmap_word_values.items():
         for bit in range(256):
             if (bits >> bit) & 1:
                 tick = (word * 256 + bit) * SPACING
-                # Check against TickMath boundaries if needed (though source bitmap shouldn't have out-of-bounds)
                 if -887272 <= tick <= 887272:
-                     initialized_ticks.append(tick)
+                    initialized_ticks.append(tick)
 
-    initialized_ticks.sort()
-    print(f"Total initialized ticks found: {len(initialized_ticks)}")
-    # print(f"Sample Ticks: {initialized_ticks[:5]}...{initialized_ticks[-5:]}") # Print some samples
-
-
-    # 3. Fetch TickInfo for each initialized tick
-    print("Fetching TickInfo for initialized ticks...")
-    tick_data = {} # Store tick -> (liqNet, liqGross, fee0, fee1)
-    tasks = []
-
-    async def fetch_tick_info(tick):
-         async with semaphore:
-            tick_info_base_slot = calculate_nested_mapping_slot(tick, ticks_mapping_base_slot)
-            slot0_int = int(tick_info_base_slot, 16)
-            slot1 = HexStr(hex(slot0_int + 1))
-            slot2 = HexStr(hex(slot0_int + 2))
-
-            results = await asyncio.gather(
-                w3_async.eth.get_storage_at(POOLMAN_ADDR, tick_info_base_slot, block_identifier=BLOCK),
-                w3_async.eth.get_storage_at(POOLMAN_ADDR, slot1, block_identifier=BLOCK),
-                w3_async.eth.get_storage_at(POOLMAN_ADDR, slot2, block_identifier=BLOCK)
+    tick_data = {}
+    async def fetch_tick(tick):
+        async with semaphore:
+            base = calculate_nested_mapping_slot(tick, ticks_base)
+            slot1 = HexStr(hex(int(base, 16) + 1))
+            slot2 = HexStr(hex(int(base, 16) + 2))
+            slot0, _, _ = await asyncio.gather(
+                w3_async.eth.get_storage_at(POOLMAN_ADDR, base, block_identifier=block),
+                w3_async.eth.get_storage_at(POOLMAN_ADDR, slot1, block_identifier=block),
+                w3_async.eth.get_storage_at(POOLMAN_ADDR, slot2, block_identifier=block),
             )
+            liq_net, liq_gross = decode_tickinfo_slot0(slot0)
+            tick_data[tick] = {"liquidityNet": str(liq_net), "liquidityGross": str(liq_gross)}
 
-            liq_net, liq_gross = decode_tickinfo_slot0(results[0])
-            fee0 = int.from_bytes(results[1], 'big')
-            fee1 = int.from_bytes(results[2], 'big')
-            tick_data[tick] = (liq_net, liq_gross, fee0, fee1)
-            # print(f"Tick {tick}: Net={liq_net}, Gross={liq_gross}") # Verbose
+    await asyncio.gather(*(fetch_tick(t) for t in initialized_ticks))
+    all_ticks[block_str] = tick_data
+    with open("tick_snapshot.json", "w") as f:
+        json.dump(all_ticks, f, indent=2)
 
-    for tick in initialized_ticks:
-         tasks.append(fetch_tick_info(tick))
+    print(f"Block {block} stored ({len(bitmap_word_values)} bitmap words, {len(tick_data)} ticks)")
 
-    await asyncio.gather(*tasks)
-    print(f"Fetched TickInfo for {len(tick_data)} ticks.")
+async def main():
+    with open(SWAPS_FILE) as f:
+        blocks = sorted({int(s["transaction"]["blockNumber"]) for s in json.load(f)["data"]["pool"]["swaps"]})
 
-    # 4. Prepare snapshot (include gross + net, maybe fees if needed)
-    snap = [
-        {"tick": t, "liquidityNet": str(data[0]), "liquidityGross": str(data[1])}
-        for t, data in tick_data.items()
-        # Optionally keep filtering if net=0 and gross=0? Usually net != 0 if gross != 0
-        if data[0] != 0 or data[1] != 0 # Your existing filter
-    ]
-    snap.sort(key=lambda x: x['tick'])
+    for fname in ("bitmap_snapshot.json", "tick_snapshot.json"):
+        if not os.path.exists(fname):
+            with open(fname, "w") as f:
+                json.dump({}, f)
 
-    # 5. Save to JSON
-    output_filename = "tick_snapshot.json"
-    snap_dict = {str(item["tick"]): {"liquidityNet": item["liquidityNet"], "liquidityGross": item["liquidityGross"]} for item in snap}
-    with open(output_filename, "w") as f:
-        json.dump(snap_dict, f, indent=2)
-    print(f"Wrote {output_filename}")
+    with open("bitmap_snapshot.json") as f:
+        all_bitmaps = json.load(f)
+    with open("tick_snapshot.json") as f:
+        all_ticks = json.load(f)
 
-# --- Run ---
+    pool_base = calculate_mapping_slot(POOL_ID_HEX, 6)
+    tick_bitmap_base = HexStr(hex(int(pool_base, 16) + 5))
+    ticks_base = HexStr(hex(int(pool_base, 16) + 4))
+
+    for block in blocks:
+        try:
+            await snapshot_at_block(block, tick_bitmap_base, ticks_base, all_bitmaps, all_ticks)
+        except Exception as e:
+            print(f"[ERROR] Block {block} failed: {e}")
+
 if __name__ == "__main__":
     asyncio.run(main())
