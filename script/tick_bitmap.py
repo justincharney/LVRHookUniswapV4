@@ -4,6 +4,7 @@ from web3 import AsyncWeb3, AsyncHTTPProvider, Web3 # Need Web3 for keccak sync
 from eth_abi.packed import encode_packed
 from eth_typing import HexStr
 from typing import Dict
+from eth_abi import encode
 
 # --- Configuration ---
 RPC = "https://eth.drpc.org"
@@ -99,6 +100,7 @@ async def main():
     print(f"Found {len(bitmap_word_values)} non-zero bitmap words.")
     bitmap_data_to_save = [{"wordPos": k, "value": hex(v)} for k, v in bitmap_word_values.items()]
     bitmap_data_to_save.sort(key=lambda x: x['wordPos']) # Sort for consistency
+    bitmap_data_to_save = {str(k): hex(v) for k, v in bitmap_word_values.items()}
     with open(FILE_BITMAP, "w") as f:
         json.dump(bitmap_data_to_save, f, indent=2)
     print(f"Saved bitmap data to {FILE_BITMAP}")
@@ -150,17 +152,18 @@ async def main():
 
     # 4. Prepare snapshot (include gross + net, maybe fees if needed)
     snap = [
-        {"tick": t, "liquidityNet": data[0], "liquidityGross": data[1]} # Add Gross
+        {"tick": t, "liquidityNet": str(data[0]), "liquidityGross": str(data[1])}
         for t, data in tick_data.items()
         # Optionally keep filtering if net=0 and gross=0? Usually net != 0 if gross != 0
-        if data[0] != 0 or data[1] != 0
+        if data[0] != 0 or data[1] != 0 # Your existing filter
     ]
-    snap.sort(key=lambda x: x['tick']) # Sort by tick
+    snap.sort(key=lambda x: x['tick'])
 
     # 5. Save to JSON
     output_filename = "tick_snapshot.json"
+    snap_dict = {str(item["tick"]): {"liquidityNet": item["liquidityNet"], "liquidityGross": item["liquidityGross"]} for item in snap}
     with open(output_filename, "w") as f:
-        json.dump(snap, f, indent=2)
+        json.dump(snap_dict, f, indent=2)
     print(f"Wrote {output_filename}")
 
 # --- Run ---

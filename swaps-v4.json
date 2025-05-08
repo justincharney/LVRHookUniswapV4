@@ -7,6 +7,7 @@
           "amount0": "0.01",
           "amount1": "-24.570258",
           "sqrtPriceX96": "3927370225299858350344231",
+          "tick": "-198253",
           "transaction": {
             "blockNumber": "21763860",
             "timestamp": "1738560095"
@@ -16,6 +17,7 @@
           "amount0": "-0.18164518378060225",
           "amount1": "450",
           "sqrtPriceX96": "3957571311565728313725595",
+          "tick": "-198100",
           "transaction": {
             "blockNumber": "21763873",
             "timestamp": "1738560251"
@@ -25,6 +27,7 @@
           "amount0": "-0.159720711913529738",
           "amount1": "400",
           "sqrtPriceX96": "3967868019507835531521729",
+          "tick": "-198048",
           "transaction": {
             "blockNumber": "21763900",
             "timestamp": "1738560575"
@@ -34,6 +37,7 @@
           "amount0": "0.25",
           "amount1": "-623.894044",
           "sqrtPriceX96": "3942524046462522475894499",
+          "tick": "-198176",
           "transaction": {
             "blockNumber": "21763956",
             "timestamp": "1738561247"
@@ -43,6 +47,7 @@
           "amount0": "-0.058773870426287785",
           "amount1": "145.971764",
           "sqrtPriceX96": "3952320726092255143926839",
+          "tick": "-198126",
           "transaction": {
             "blockNumber": "21763988",
             "timestamp": "1738561631"
@@ -52,6 +57,7 @@
           "amount0": "0.04",
           "amount1": "-99.324071",
           "sqrtPriceX96": "3945651402855134142175267",
+          "tick": "-198160",
           "transaction": {
             "blockNumber": "21764003",
             "timestamp": "1738561811"
@@ -61,6 +67,7 @@
           "amount0": "-0.008057249617703287",
           "amount1": "20",
           "sqrtPriceX96": "3946993673355839473881105",
+          "tick": "-198153",
           "transaction": {
             "blockNumber": "21764042",
             "timestamp": "1738562291"
@@ -70,6 +77,7 @@
           "amount0": "-0.031898146105707478",
           "amount1": "79.3125",
           "sqrtPriceX96": "3952316614759838730988651",
+          "tick": "-198126",
           "transaction": {
             "blockNumber": "21764057",
             "timestamp": "1738562471"
@@ -79,6 +87,7 @@
           "amount0": "0.145",
           "amount1": "-358.461194",
           "sqrtPriceX96": "3928246985620545611815355",
+          "tick": "-198248",
           "transaction": {
             "blockNumber": "21764080",
             "timestamp": "1738562747"
@@ -88,6 +97,7 @@
           "amount0": "-0.739715870026185298",
           "amount1": "1832.649819",
           "sqrtPriceX96": "3956924210796380757923086",
+          "tick": "-198103",
           "transaction": {
             "blockNumber": "21764087",
             "timestamp": "1738562831"
@@ -96,3 +106,4 @@
       ]
     }
   }
+}

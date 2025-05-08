@@ -4,7 +4,7 @@ POOL_ID=0x21c67e77068de97969ba93d4aab21826d33ca12bb9f565d8496e8fda8a82ca27
 SLOT_INDEX_FOR_POOLS_MAPPING=6               # mapping(bytes32 ⇒ State) is at slot 6
 MANAGER=0x000000000004444c5dc75cB358380D2e3dE08A90
 RPC=https://eth.drpc.org
-BLOCK=latest #21763860 # Specific block where you know the state
+BLOCK=21763860 # Specific block where you know the state
 
 echo "Fetching pool state at block $BLOCK …"
 

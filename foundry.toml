@@ -6,7 +6,12 @@ libs = ["lib"]
 # optimization_runs = 200
 via_ir = true
 ffi = true
-fs_permissions = [{ access = "read-write", path = "./storage"}, { access = "read", path = "./swaps.json" }, { access = "read", path = "./swaps-v4.json" }, { access = "read-write", path = ".forge-snapshots/"}]
+fs_permissions = [{ access = "read-write", path = "./storage"},
+{ access = "read", path = "./swaps.json" },
+{ access = "read", path = "./swaps-v4.json" },
+{ access = "read", path = "./bitmap_snapshot.json" },
+{ access = "read", path = "./tick_snapshot.json" },
+{ access = "read-write", path = ".forge-snapshots/"}]
 solc_version = "0.8.26"
 evm_version = "cancun"
 
