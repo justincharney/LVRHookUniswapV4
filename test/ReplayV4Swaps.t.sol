@@ -76,6 +76,8 @@ contract ReplayV4Swaps is Test, Fixtures {
     uint160 constant INIT_SQRT_PRICE = 3927370225299858350344231;
     uint128 constant INIT_LIQ = 1179919373798284;
 
+    MockERC20 public weth;
+
     // JSON file paths
     string constant TICK_SNAPSHOT_PATH = "./tick_snapshot.json";
     string constant BITMAP_SNAPSHOT_PATH = "./bitmap_snapshot.json";
@@ -89,7 +91,7 @@ contract ReplayV4Swaps is Test, Fixtures {
         deployFreshManagerAndRouters();
         // deployMintAndApprove2Currencies(); // Deploys currency0, currency1
         // --- deploy tokens with the right decimals --------------------
-        MockERC20 weth  = new MockERC20("Wrapped Ether", "WETH", 18);
+        weth  = new MockERC20("Wrapped Ether", "WETH", 18);
         MockERC20 usdc  = new MockERC20("USD Coin",      "USDC",  6);
 
         // mint plenty to this test contract
@@ -270,30 +272,53 @@ contract ReplayV4Swaps is Test, Fixtures {
                 poolId
             );
 
-            // Parse amounts from JSON.
-            // amount0 is WETH (18 dec), amount1 is USDC (6 dec),
-            int256 amount0 = _stringToFixed(s.amount0, 18);
-            int256 amount1 = _stringToFixed(s.amount1, 6);
+            bool wethIs0 = Currency.unwrap(currency0) == address(weth);
 
-            bool zeroForOne; // True if swapping WETH for USDC (selling currency0)
-            int256 amountSpecified;
-            // If `amount0 < 0`: This means token0 was **removed** from the pool.
-            // From the swapper's perspective, they **received** (or bought) token0.
-            if (amount0 < 0) {
-                // Selling token1, receiving token0
-                zeroForOne = false;
-                amountSpecified = amount1;
+            // 1. Parse the JSON strictly in pool‑on‑chain order
+            int256 jsonWeth  = _stringToFixed(s.amount0, 18);
+            int256 jsonUsdc  = _stringToFixed(s.amount1, 6);
+
+            // 2. Convert to local token‑order units
+            // amount0 represents the change in the pool's currency0 balance
+            // amount1 represents the change in the pool's currency1 balance
+            int256 amount0_pool_delta_local = wethIs0 ? jsonWeth : jsonUsdc;
+            int256 amount1_pool_delta_local = wethIs0 ? jsonUsdc : jsonWeth;
+
+            // 3. Work out direction & amountSpecified FOR AN EXACT INPUT SWAP
+            bool   zeroForOne_final;
+            int256 amountToSpecifyForExactInput;
+
+            // If a pool_delta is POSITIVE, that token ENTERED the pool (it was the swapper's INPUT).
+            // If a pool_delta is NEGATIVE, that token LEFT the pool (it was the swapper's OUTPUT).
+
+            if (amount1_pool_delta_local > 0) {
+                // Swapper input currency1. Pool received currency1.
+                // currency0 must have been output (amount0_pool_delta_local < 0).
+                require(amount0_pool_delta_local < 0, "Data Error: If currency1 entered pool, currency0 should have left.");
+                zeroForOne_final = false; // Selling currency1 for currency0
+                amountToSpecifyForExactInput = -amount1_pool_delta_local; // NEGATIVE of the input currency1 amount
+            } else if (amount0_pool_delta_local > 0) {
+                // Swapper input currency0. Pool received currency0.
+                // currency1 must have been output (amount1_pool_delta_local < 0).
+                require(amount1_pool_delta_local < 0, "Data Error: If currency0 entered pool, currency1 should have left.");
+                zeroForOne_final = true; // Selling currency0 for currency1
+                amountToSpecifyForExactInput = -amount0_pool_delta_local; // NEGATIVE of the input currency0 amount
             } else {
-                // Selling token0, receiving token1
-                zeroForOne = true;
-                amountSpecified = amount0;
+                // This case implies both deltas are non-positive, or one is zero and the other non-positive.
+                // For a typical swap from your JSON (one in, one out), this shouldn't be hit.
+                revert("Invalid swap data in JSON: Pool deltas do not indicate a clear input token for the swapper.");
             }
+
+            console.log("ReplayV4Swaps: Swap #%s", vm.toString(i));
+            console.log("ReplayV4Swaps: zeroForOne_final = %s", vm.toString(zeroForOne_final));
+            console.log("ReplayV4Swaps: amountToSpecifyForExactInput = %s", vm.toString(amountToSpecifyForExactInput));
+            // Add more logs from previous suggestion if needed
 
             // run swap through the standard helper from Fixtures
             BalanceDelta delta = swap(
                 pkey,
-                zeroForOne,
-                amountSpecified,
+                zeroForOne_final,
+                amountToSpecifyForExactInput, // This will now be NEGATIVE
                 ZERO_BYTES // no hook data
             );
 
