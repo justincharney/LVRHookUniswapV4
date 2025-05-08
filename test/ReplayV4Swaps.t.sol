@@ -97,6 +97,8 @@ contract ReplayV4Swaps is Test, Fixtures {
         // mint plenty to this test contract
         weth.mint(address(this), 100_000 ether);
         usdc.mint(address(this), 500_000_000 * 1e6);
+        weth.mint(address(manager), 100_000 ether);
+        usdc.mint(address(manager), 500_000_000 * 1e6);
 
         // give all the PoolManager test routers unlimited allowance
         address[9] memory toApprove = [
