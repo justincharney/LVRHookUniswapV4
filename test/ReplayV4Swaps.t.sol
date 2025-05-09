@@ -37,7 +37,12 @@ contract ReplayV4Swaps is Test, Fixtures {
         string amount1;
         string sqrtPriceX96;
         string tick;
+        Transaction transaction;
+    }
+
+    struct Transaction {
         string blockNumber;
+        string timestamp;
     }
 
     /* ---------- Metrics from the swaps -------------- */
@@ -77,6 +82,13 @@ contract ReplayV4Swaps is Test, Fixtures {
     uint128 constant INIT_LIQ = 1179919373798284;
 
     MockERC20 public weth;
+    uint256 private currentBlockNumber = 0;
+
+    string private constant TICK_SNAP = "./tick_snapshot.json";
+    string private constant BM_SNAP = "./bitmap_snapshot.json";
+
+    string private tickFile;
+    string private bitmapFile;
 
     // JSON file paths
     string constant TICK_SNAPSHOT_PATH = "./tick_snapshot.json";
@@ -89,12 +101,11 @@ contract ReplayV4Swaps is Test, Fixtures {
     function setUp() public {
         // --- 1. Deploy manager, hook, pool ---
         deployFreshManagerAndRouters();
-        // deployMintAndApprove2Currencies(); // Deploys currency0, currency1
         // --- deploy tokens with the right decimals --------------------
         weth  = new MockERC20("Wrapped Ether", "WETH", 18);
         MockERC20 usdc  = new MockERC20("USD Coin",      "USDC",  6);
 
-        // mint plenty to this test contract
+        // mint plenty to this test contract & pool manager
         weth.mint(address(this), 100_000 ether);
         usdc.mint(address(this), 500_000_000 * 1e6);
         weth.mint(address(manager), 100_000 ether);
@@ -120,10 +131,6 @@ contract ReplayV4Swaps is Test, Fixtures {
         // wrap into Currency and sort by address (the helper does the same)
         (currency0, currency1) = SortTokens.sort(weth, usdc);
 
-        // // give *this* contract plenty of tokens – the PM will pull from us
-        // deal(Currency.unwrap(currency0), address(this), 100_000 ether);
-        // deal(Currency.unwrap(currency1), address(this), 500_000_000 * 1e6);
-
         // Deploy Hook
         address hookAddr = address(uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG) ^ (0x4444 << 144));
         deployCodeTo("VarianceFeeHook.sol:VarianceFeeHook", abi.encode(manager), hookAddr);
@@ -142,119 +149,10 @@ contract ReplayV4Swaps is Test, Fixtures {
         // Initialize Pool - sets initial Slot0
         manager.initialize(pkey, INIT_SQRT_PRICE);
 
-        // --- 2. Load snapshots from JSON ---
-        console.log("Loading snapshots from JSON...");
-        string memory tickJson = vm.readFile(TICK_SNAPSHOT_PATH);
-        string[] memory tickKeys = vm.parseJsonKeys(tickJson, "$");
-
-        for (uint i = 0; i < tickKeys.length; i++) {
-            string memory key = tickKeys[i];
-            int24 tick = int24(vm.parseInt(key));
-            string memory liquidityNet = vm.parseJsonString(
-                tickJson,
-                string.concat("$.", key, ".liquidityNet")
-            );
-            string memory liquidityGross = vm.parseJsonString(
-                tickJson,
-                string.concat("$.", key, ".liquidityGross")
-            );
-
-            tickInfos.push(
-                TickInfoSnapshot({
-                    tick: tick,
-                    liquidityNet: liquidityNet,
-                    liquidityGross: liquidityGross
-                })
-            );
-        }
-
-        // Load bitmap snapshot
-        string memory bitmapJson = vm.readFile(BITMAP_SNAPSHOT_PATH);
-        string[] memory bitmapKeys = vm.parseJsonKeys(bitmapJson, "$");
-
-        for (uint i = 0; i < bitmapKeys.length; i++) {
-            string memory key = bitmapKeys[i];
-            int16 wordPos = int16(vm.parseInt(key));
-            string memory value = vm.parseJsonString(
-                bitmapJson,
-                string.concat("$.", key)
-            );
-
-            bitmapWords.push(
-                BitmapWordSnapshot({wordPos: wordPos, value: value})
-            );
-        }
-
-        // --- Calculate Base Storage Slots ---
-        bytes32 localBaseSlot = StateLibrary._getPoolStateSlot(poolId); // Slot 'S'
-        bytes32 tickBitmapBase = bytes32(uint256(localBaseSlot) + 5);  // S+5
-        bytes32 ticksBase = bytes32(uint256(localBaseSlot) + 4);       // S+4
-        bytes32 liquiditySlot = bytes32(uint256(localBaseSlot) + 3);   // S+3
-
-        // --- 3. Write bitmap words ---
-        console.log("Storing bitmap words (%d)...", bitmapWords.length);
-        for (uint i = 0; i < bitmapWords.length; ++i) {
-            int16 wordPos = bitmapWords[i].wordPos;
-            // CORRECTED: Parse hex string from JSON
-            uint256 bitmapValue = vm.parseUint(bitmapWords[i].value);
-            // Use abi.encodePacked for slot calculation ?
-            bytes32 wordSlot = keccak256(abi.encode(int256(wordPos), uint256(tickBitmapBase)));
-            vm.store(address(manager), wordSlot, bytes32(bitmapValue));
-        }
-
-        // --- 4. Write TickInfo structs ---
-        console.log("Storing TickInfo (%d)...", tickInfos.length);
-        for (uint i = 0; i < tickInfos.length; ++i) {
-            int24 tick = tickInfos[i].tick;
-            // CORRECTED: Parse numeric strings
-            int256 liquidityNet = int256(vm.parseInt(tickInfos[i].liquidityNet));
-            // CORRECTED: Parse numeric string & Correct Type
-            uint128 liquidityGross = uint128(vm.parseUint(tickInfos[i].liquidityGross));
-
-            // Use abi.encodePacked for slot calculation ?
-            bytes32 tickInfoBaseSlot = keccak256(abi.encode(int256(tick), uint256(ticksBase)));
-
-            // Pack Net (upper 128) and Gross (lower 128) - cast net to uint256 for shift
-            bytes32 slot0Value = bytes32((uint256(liquidityNet) << 128) | uint256(liquidityGross));
-            vm.store(address(manager), tickInfoBaseSlot, slot0Value);
-        }
-
-        // --- 5. Write pool-level liquidity ---
+        // Write pool-level liquidity
         console.log("Storing active liquidity...");
+        bytes32 liquiditySlot = bytes32(uint256(StateLibrary._getPoolStateSlot(poolId)) + 3);
         vm.store(address(manager), liquiditySlot, bytes32(uint256(INIT_LIQ)));
-
-        // --- 6. Sanity check ---
-        console.log("Performing sanity checks...");
-        (uint160 currentSqrtP, int24 currentTick, , uint24 currentLpFee) = manager.getSlot0(poolId);
-        assertEq(currentSqrtP, INIT_SQRT_PRICE, "Check SqrtPrice");
-        assertTrue(abs(currentTick - TickMath.getTickAtSqrtPrice(INIT_SQRT_PRICE)) <= 1, "Check Tick");
-        assertEq(currentLpFee, 0, "Check LP Fee");
-
-        bytes32 storedLiqBytes = vm.load(address(manager), liquiditySlot);
-        uint128 storedLiq = uint128(uint256(storedLiqBytes));
-        assertEq(storedLiq, INIT_LIQ, "Check Active Liquidity");
-
-        if (bitmapWords.length > 0) {
-                int16 checkWordPos = bitmapWords[0].wordPos;
-                uint256 checkBitmapValue = vm.parseUint(bitmapWords[0].value);
-                // CORRECTED: Slot calculation
-                bytes32 checkWordSlot = keccak256(abi.encode(int256(checkWordPos), tickBitmapBase));
-                bytes32 storedBitmapBytes = vm.load(address(manager), checkWordSlot);
-                assertEq(uint256(storedBitmapBytes), checkBitmapValue, "Check Bitmap Word 0");
-            }
-            if (tickInfos.length > 0) {
-                int24 checkTick = tickInfos[0].tick;
-                // CORRECTED: Parse from strings for check
-                int256 checkNet = int256(vm.parseInt(tickInfos[0].liquidityNet));
-                uint128 checkGross = uint128(vm.parseUint(tickInfos[0].liquidityGross));
-                // CORRECTED: Slot calculation
-                bytes32 checkTickInfoBaseSlot = keccak256(abi.encode(int256(checkTick), ticksBase));
-                bytes32 storedTickInfoSlot0Bytes = vm.load(address(manager), checkTickInfoBaseSlot);
-                // CORRECTED: Packing logic for check
-                bytes32 expectedSlot0Value = bytes32((uint256(checkNet) << 128) | uint256(checkGross));
-                assertEq(storedTickInfoSlot0Bytes, expectedSlot0Value, "Check TickInfo 0 Slot 0");
-            }
-        console.log("Setup complete. Pool state restored.");
     }
 
     /* ---------- the actual replay test ------------------------- */
@@ -268,6 +166,8 @@ contract ReplayV4Swaps is Test, Fixtures {
         /* 2. loop over them, staring from the second swap */
         for (uint i = 1; i < rswaps.length; ++i) {
             RawSwap memory s = rswaps[i];
+            uint256 blk = uint256(vm.parseInt(s.transaction.blockNumber));
+            _applySnapshot(blk);  // ensures liquidity is right for this block
 
             // Save pre-swap state
             (uint160 preSqrtPrice, int24 preTick, , ) = manager.getSlot0(
@@ -334,6 +234,64 @@ contract ReplayV4Swaps is Test, Fixtures {
     /* ---------- helpers ---------------------------------------- */
     function abs(int256 x) internal pure returns (uint256) {
         return uint256(x >= 0 ? x : -x);
+    }
+
+    function _applySnapshot(uint256 blockNumber) internal {
+            if (blockNumber == currentBlockNumber) return;
+            currentBlockNumber = blockNumber;
+
+            // Load the files once
+            if (bytes(tickFile).length == 0) {
+                tickFile   = vm.readFile(TICK_SNAP);
+                bitmapFile = vm.readFile(BM_SNAP);
+            }
+
+            // Keys in the top‑level objects are the block numbers as strings
+            string memory blockPath = string.concat("$.", vm.toString(blockNumber));
+
+            // 3a. ticks
+            // Get keys of the object at tickFile.blockPath (e.g., keys of tickFile."$.21763873")
+            string[] memory tickKeys = vm.parseJsonKeys(tickFile, blockPath);
+            bytes32 ticksBase = bytes32(
+                uint256(StateLibrary._getPoolStateSlot(poolId)) + 4
+            );
+
+            for (uint i; i < tickKeys.length; ++i) {
+                int24  tick = int24(vm.parseInt(tickKeys[i]));
+
+                // Construct the full path from the root of tickFile
+                string memory tickSpecificPath = string.concat(blockPath, ".", tickKeys[i]);
+                string memory lnPath = string.concat(tickSpecificPath, ".liquidityNet");
+                string memory lgPath = string.concat(tickSpecificPath, ".liquidityGross");
+
+                string memory ln  = vm.parseJsonString(tickFile, lnPath);
+                string memory lg  = vm.parseJsonString(tickFile, lgPath);
+
+                bytes32 slot = keccak256(abi.encode(int256(tick), uint256(ticksBase)));
+                vm.store(
+                    address(manager),
+                    slot,
+                    bytes32(
+                        (uint256(int256(vm.parseInt(ln))) << 128) |
+                        uint256(vm.parseUint(lg))
+                    )
+                );
+            }
+
+            // 3b. bitmap words
+            string[] memory bmKeys = vm.parseJsonKeys(bitmapFile, blockPath);
+            bytes32 bitmapBase = bytes32(
+                uint256(StateLibrary._getPoolStateSlot(poolId)) + 5
+            );
+
+            for (uint i; i < bmKeys.length; ++i) {
+                int16 wordPos = int16(vm.parseInt(bmKeys[i]));
+                string memory wordSpecificPath = string.concat(blockPath, ".", bmKeys[i]);
+                string memory hexValueString = vm.parseJsonString(bitmapFile, wordSpecificPath);
+                uint256 value = vm.parseUint(hexValueString);
+                bytes32 slot = keccak256(abi.encode(int256(wordPos), uint256(bitmapBase)));
+                vm.store(address(manager), slot, bytes32(value));
+            }
     }
 
     function _stringToFixed(
