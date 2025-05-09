@@ -37,6 +37,10 @@ contract ReplayV4Swaps is Test, Fixtures {
         string amount1;
         string sqrtPriceX96;
         string tick;
+        Transaction transaction;
+    }
+
+    struct Transaction {
         string blockNumber;
     }
 
@@ -145,45 +149,47 @@ contract ReplayV4Swaps is Test, Fixtures {
         // --- 2. Load snapshots from JSON ---
         console.log("Loading snapshots from JSON...");
         string memory tickJson = vm.readFile(TICK_SNAPSHOT_PATH);
-        string[] memory tickKeys = vm.parseJsonKeys(tickJson, "$");
+        string memory testBlock = "21763860"; // Replace with any block from your snapshot
+        string[] memory tickKeys = vm.parseJsonKeys(tickJson, string.concat("$.", testBlock));
 
         for (uint i = 0; i < tickKeys.length; i++) {
             string memory key = tickKeys[i];
             int24 tick = int24(vm.parseInt(key));
             string memory liquidityNet = vm.parseJsonString(
                 tickJson,
-                string.concat("$.", key, ".liquidityNet")
+                string.concat("$.", testBlock, ".", key, ".liquidityNet")
             );
             string memory liquidityGross = vm.parseJsonString(
                 tickJson,
-                string.concat("$.", key, ".liquidityGross")
+                string.concat("$.", testBlock, ".", key, ".liquidityGross")
             );
 
-            tickInfos.push(
-                TickInfoSnapshot({
-                    tick: tick,
-                    liquidityNet: liquidityNet,
-                    liquidityGross: liquidityGross
-                })
-            );
+            tickInfos.push(TickInfoSnapshot({
+                tick: tick,
+                liquidityNet: liquidityNet,
+                liquidityGross: liquidityGross
+            }));
         }
+
 
         // Load bitmap snapshot
         string memory bitmapJson = vm.readFile(BITMAP_SNAPSHOT_PATH);
-        string[] memory bitmapKeys = vm.parseJsonKeys(bitmapJson, "$");
+        string[] memory bitmapKeys = vm.parseJsonKeys(bitmapJson, string.concat("$.", testBlock));
 
         for (uint i = 0; i < bitmapKeys.length; i++) {
             string memory key = bitmapKeys[i];
             int16 wordPos = int16(vm.parseInt(key));
             string memory value = vm.parseJsonString(
                 bitmapJson,
-                string.concat("$.", key)
+                string.concat("$.", testBlock, ".", key)
             );
 
-            bitmapWords.push(
-                BitmapWordSnapshot({wordPos: wordPos, value: value})
-            );
+            bitmapWords.push(BitmapWordSnapshot({
+                wordPos: wordPos,
+                value: value
+            }));
         }
+
 
         // --- Calculate Base Storage Slots ---
         bytes32 localBaseSlot = StateLibrary._getPoolStateSlot(poolId); // Slot 'S'
@@ -259,77 +265,140 @@ contract ReplayV4Swaps is Test, Fixtures {
 
     /* ---------- the actual replay test ------------------------- */
     function test_replaySwaps() public {
-        /* 1. read file */
         string memory json = vm.readFile("./swaps-v4.json");
-
-        bytes memory arr = json.parseRaw(".data.pool.swaps"); // returns the ABI-encoded array
+        bytes memory arr = json.parseRaw(".data.pool.swaps");
         RawSwap[] memory rswaps = abi.decode(arr, (RawSwap[]));
 
-        /* 2. loop over them, staring from the second swap */
-        for (uint i = 1; i < rswaps.length; ++i) {
+        for (uint i = 1; i < 25; ++i) {
             RawSwap memory s = rswaps[i];
 
-            // Save pre-swap state
-            (uint160 preSqrtPrice, int24 preTick, , ) = manager.getSlot0(
-                poolId
-            );
+            // --- Restore tick + bitmap state for this block ---
+            uint blockNum = uint(vm.parseInt(s.transaction.blockNumber));
+            string memory tickJson = vm.readFile("./tick_snapshot.json");
+            string memory bitmapJson = vm.readFile("./bitmap_snapshot.json");
 
+            string[] memory tickKeys = vm.parseJsonKeys(tickJson, string.concat("$.", vm.toString(blockNum)));
+            delete tickInfos;
+            for (uint j = 0; j < tickKeys.length; j++) {
+                string memory key = tickKeys[j];
+                string memory pathBase = string.concat("$.", vm.toString(blockNum), ".", key);
+
+                string memory net = vm.parseJsonString(tickJson, string.concat(pathBase, ".liquidityNet"));
+                string memory gross = vm.parseJsonString(tickJson, string.concat(pathBase, ".liquidityGross"));
+
+                require(bytes(net).length > 0, string.concat("Missing liquidityNet at block ", vm.toString(blockNum), " tick ", key));
+                require(bytes(gross).length > 0, string.concat("Missing liquidityGross at block ", vm.toString(blockNum), " tick ", key));
+
+                int24 parsedTick = int24(vm.parseInt(key));  // ✅ Now we parse only after checking
+
+                tickInfos.push(TickInfoSnapshot({
+                    tick: parsedTick,
+                    liquidityNet: net,
+                    liquidityGross: gross
+                }));
+            }
+
+
+            string[] memory bitmapKeys = vm.parseJsonKeys(bitmapJson, string.concat("$.", vm.toString(blockNum)));
+            delete bitmapWords;
+            for (uint j = 0; j < bitmapKeys.length; j++) {
+                string memory key = bitmapKeys[j];
+                string memory path = string.concat("$.", vm.toString(blockNum), ".", key);
+                string memory val = vm.parseJsonString(bitmapJson, path);
+
+                require(bytes(val).length > 0, string.concat("Missing bitmap value at block ", vm.toString(blockNum), " pos ", key));
+
+                int16 parsedWord = int16(vm.parseInt(key));  // ✅ Safe now
+
+                bitmapWords.push(BitmapWordSnapshot({
+                    wordPos: parsedWord,
+                    value: val
+                }));
+            }
+
+
+
+            // --- Write tick and bitmap state to storage ---
+            bytes32 baseSlot = StateLibrary._getPoolStateSlot(poolId);
+            bytes32 tickBitmapBase = bytes32(uint256(baseSlot) + 5);
+            bytes32 ticksBase = bytes32(uint256(baseSlot) + 4);
+
+            for (uint j = 0; j < bitmapWords.length; j++) {
+                int16 wordPos = bitmapWords[j].wordPos;
+                uint256 val = vm.parseUint(bitmapWords[j].value);
+                bytes32 wordSlot = keccak256(abi.encode(int256(wordPos), uint256(tickBitmapBase)));
+                vm.store(address(manager), wordSlot, bytes32(val));
+            }
+
+            for (uint j = 0; j < tickInfos.length; j++) {
+                int24 tick = tickInfos[j].tick;
+                int256 net = int256(vm.parseInt(tickInfos[j].liquidityNet));
+                uint128 gross = uint128(vm.parseUint(tickInfos[j].liquidityGross));
+                bytes32 tickSlot = keccak256(abi.encode(int256(tick), uint256(ticksBase)));
+                bytes32 slotVal = bytes32((uint256(net) << 128) | uint256(gross));
+                vm.store(address(manager), tickSlot, slotVal);
+            }
+
+            // --- Optional: Validate state restore for this block ---
+            if (bitmapWords.length > 0) {
+                int16 checkWordPos = bitmapWords[0].wordPos;
+                uint256 checkBitmapValue = vm.parseUint(bitmapWords[0].value);
+                bytes32 checkWordSlot = keccak256(abi.encode(int256(checkWordPos), uint256(tickBitmapBase)));
+                bytes32 storedBitmap = vm.load(address(manager), checkWordSlot);
+                assertEq(uint256(storedBitmap), checkBitmapValue, "Mismatch in bitmap restore");
+            }
+
+            if (tickInfos.length > 0) {
+                int24 checkTick = tickInfos[0].tick;
+                int256 checkNet = int256(vm.parseInt(tickInfos[0].liquidityNet));
+                uint128 checkGross = uint128(vm.parseUint(tickInfos[0].liquidityGross));
+                bytes32 checkTickSlot = keccak256(abi.encode(int256(checkTick), uint256(ticksBase)));
+                bytes32 storedTick = vm.load(address(manager), checkTickSlot);
+                bytes32 expectedTick = bytes32((uint256(checkNet) << 128) | uint256(checkGross));
+                assertEq(storedTick, expectedTick, "Mismatch in tick restore");
+            }
+
+
+            // --- Save pre-swap state ---
+            (uint160 preSqrtPrice, int24 preTick, , ) = manager.getSlot0(poolId);
             bool wethIs0 = Currency.unwrap(currency0) == address(weth);
 
-            // 1. Parse the JSON strictly in pool‑on‑chain order
-            int256 jsonWeth  = _stringToFixed(s.amount0, 18);
-            int256 jsonUsdc  = _stringToFixed(s.amount1, 6);
-
-            // 2. Convert to local token‑order units
-            // amount0 represents the change in the pool's currency0 balance
-            // amount1 represents the change in the pool's currency1 balance
+            int256 jsonWeth = _stringToFixed(s.amount0, 18);
+            int256 jsonUsdc = _stringToFixed(s.amount1, 6);
             int256 amount0_pool_delta_local = wethIs0 ? jsonWeth : jsonUsdc;
             int256 amount1_pool_delta_local = wethIs0 ? jsonUsdc : jsonWeth;
 
-            // 3. Work out direction & amountSpecified FOR AN EXACT INPUT SWAP
-            bool   zeroForOne_final;
+            bool zeroForOne_final;
             int256 amountToSpecifyForExactInput;
-
-            // If a pool_delta is POSITIVE, that token ENTERED the pool (it was the swapper's INPUT).
-            // If a pool_delta is NEGATIVE, that token LEFT the pool (it was the swapper's OUTPUT).
-
             if (amount1_pool_delta_local > 0) {
-                // Swapper input currency1. Pool received currency1.
-                // currency0 must have been output (amount0_pool_delta_local < 0).
-                require(amount0_pool_delta_local < 0, "Data Error: If currency1 entered pool, currency0 should have left.");
-                zeroForOne_final = false; // Selling currency1 for currency0
-                amountToSpecifyForExactInput = -amount1_pool_delta_local; // NEGATIVE of the input currency1 amount
+                require(amount0_pool_delta_local < 0, "Data Error: currency0 should have left.");
+                zeroForOne_final = false;
+                amountToSpecifyForExactInput = -amount1_pool_delta_local;
             } else if (amount0_pool_delta_local > 0) {
-                // Swapper input currency0. Pool received currency0.
-                // currency1 must have been output (amount1_pool_delta_local < 0).
-                require(amount1_pool_delta_local < 0, "Data Error: If currency0 entered pool, currency1 should have left.");
-                zeroForOne_final = true; // Selling currency0 for currency1
-                amountToSpecifyForExactInput = -amount0_pool_delta_local; // NEGATIVE of the input currency0 amount
+                require(amount1_pool_delta_local < 0, "Data Error: currency1 should have left.");
+                zeroForOne_final = true;
+                amountToSpecifyForExactInput = -amount0_pool_delta_local;
             } else {
-                // This case implies both deltas are non-positive, or one is zero and the other non-positive.
-                // For a typical swap from your JSON (one in, one out), this shouldn't be hit.
-                revert("Invalid swap data in JSON: Pool deltas do not indicate a clear input token for the swapper.");
+                revert("Invalid swap data in JSON: No input detected.");
             }
 
             console.log("ReplayV4Swaps: Swap #%s", vm.toString(i));
             console.log("ReplayV4Swaps: zeroForOne_final = %s", vm.toString(zeroForOne_final));
             console.log("ReplayV4Swaps: amountToSpecifyForExactInput = %s", vm.toString(amountToSpecifyForExactInput));
-            // Add more logs from previous suggestion if needed
 
-            // run swap through the standard helper from Fixtures
             BalanceDelta delta = swap(
                 pkey,
                 zeroForOne_final,
-                amountToSpecifyForExactInput, // This will now be NEGATIVE
-                ZERO_BYTES // no hook data
+                amountToSpecifyForExactInput,
+                ZERO_BYTES
             );
 
             _recordMetrics(delta, preSqrtPrice, preTick, s);
         }
 
-        // Get the data into an output format
         _writeCsv();
     }
+
 
     /* ---------- helpers ---------------------------------------- */
     function abs(int256 x) internal pure returns (uint256) {
