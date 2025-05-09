@@ -7,6 +7,7 @@
           "amount0": "0.01",
           "amount1": "-24.570258",
           "sqrtPriceX96": "3927370225299858350344231",
+          "tick": "-198253",
           "timestamp": "1738560095",
           "transaction": {
             "blockNumber": "21763860"
@@ -18,6 +19,7 @@
           "amount0": "-0.18164518378060225",
           "amount1": "450",
           "sqrtPriceX96": "3957571311565728313725595",
+          "tick": "-198100",
           "timestamp": "1738560251",
           "transaction": {
             "blockNumber": "21763873"
@@ -29,6 +31,7 @@
           "amount0": "-0.159720711913529738",
           "amount1": "400",
           "sqrtPriceX96": "3967868019507835531521729",
+          "tick": "-198048",
           "timestamp": "1738560575",
           "transaction": {
             "blockNumber": "21763900"
@@ -40,6 +43,7 @@
           "amount0": "0.25",
           "amount1": "-623.894044",
           "sqrtPriceX96": "3942524046462522475894499",
+          "tick": "-198176",
           "timestamp": "1738561247",
           "transaction": {
             "blockNumber": "21763956"
@@ -51,6 +55,7 @@
           "amount0": "-0.058773870426287785",
           "amount1": "145.971764",
           "sqrtPriceX96": "3952320726092255143926839",
+          "tick": "-198126",
           "timestamp": "1738561631",
           "transaction": {
             "blockNumber": "21763988"
@@ -62,6 +67,7 @@
           "amount0": "0.04",
           "amount1": "-99.324071",
           "sqrtPriceX96": "3945651402855134142175267",
+          "tick": "-198160",
           "timestamp": "1738561811",
           "transaction": {
             "blockNumber": "21764003"
@@ -73,6 +79,7 @@
           "amount0": "-0.008057249617703287",
           "amount1": "20",
           "sqrtPriceX96": "3946993673355839473881105",
+          "tick": "-198153",
           "timestamp": "1738562291",
           "transaction": {
             "blockNumber": "21764042"
@@ -84,6 +91,7 @@
           "amount0": "-0.031898146105707478",
           "amount1": "79.3125",
           "sqrtPriceX96": "3952316614759838730988651",
+          "tick": "-198126",
           "timestamp": "1738562471",
           "transaction": {
             "blockNumber": "21764057"
@@ -95,6 +103,7 @@
           "amount0": "0.145",
           "amount1": "-358.461194",
           "sqrtPriceX96": "3928246985620545611815355",
+          "tick": "-198248",
           "timestamp": "1738562747",
           "transaction": {
             "blockNumber": "21764080"
@@ -106,11 +115,1092 @@
           "amount0": "-0.739715870026185298",
           "amount1": "1832.649819",
           "sqrtPriceX96": "3956924210796380757923086",
+          "tick": "-198103",
           "timestamp": "1738562831",
           "transaction": {
             "blockNumber": "21764087"
           },
           "cex_price": "2498.377333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.097372456829826763",
+          "amount1": "243.235618",
+          "sqrtPriceX96": "3960730351233422952288744",
+          "tick": "-198084",
+          "timestamp": "1738562855",
+          "transaction": {
+            "blockNumber": "21764089"
+          },
+          "cex_price": "2498.153333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.019992963772628701",
+          "amount1": "50",
+          "sqrtPriceX96": "3961448454876589305007890",
+          "tick": "-198080",
+          "timestamp": "1738563407",
+          "transaction": {
+            "blockNumber": "21764135"
+          },
+          "cex_price": "2507.431333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.12",
+          "amount1": "-299.510719",
+          "sqrtPriceX96": "3956823673687706054289312",
+          "tick": "-198103",
+          "timestamp": "1738563539",
+          "transaction": {
+            "blockNumber": "21764146"
+          },
+          "cex_price": "2511.618833",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.05513759021008093",
+          "amount1": "137.668821",
+          "sqrtPriceX96": "3958977909440690414820272",
+          "tick": "-198092",
+          "timestamp": "1738563659",
+          "transaction": {
+            "blockNumber": "21764156"
+          },
+          "cex_price": "2518.8295",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.365005817380939623",
+          "amount1": "914.293471",
+          "sqrtPriceX96": "3968847434365788147195463",
+          "tick": "-198043",
+          "timestamp": "1738563743",
+          "transaction": {
+            "blockNumber": "21764163"
+          },
+          "cex_price": "2513.911667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.113009930837550295",
+          "amount1": "283.928452",
+          "sqrtPriceX96": "3971639905363097516415757",
+          "tick": "-198029",
+          "timestamp": "1738563875",
+          "transaction": {
+            "blockNumber": "21764174"
+          },
+          "cex_price": "2528.126667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.421468783296353387",
+          "amount1": "1062.439698",
+          "sqrtPriceX96": "3982089129559639102850993",
+          "tick": "-197976",
+          "timestamp": "1738564091",
+          "transaction": {
+            "blockNumber": "21764192"
+          },
+          "cex_price": "2521.493167",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.12747",
+          "amount1": "-321.594272",
+          "sqrtPriceX96": "3978924628357151880130287",
+          "tick": "-197992",
+          "timestamp": "1738564139",
+          "transaction": {
+            "blockNumber": "21764196"
+          },
+          "cex_price": "2525.085167",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.085806855950031759",
+          "amount1": "216.642646",
+          "sqrtPriceX96": "3981055335235002586541768",
+          "tick": "-197981",
+          "timestamp": "1738564331",
+          "transaction": {
+            "blockNumber": "21764212"
+          },
+          "cex_price": "2529.757833",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.000989652814275567",
+          "amount1": "2.5",
+          "sqrtPriceX96": "3981079923040356852005222",
+          "tick": "-197981",
+          "timestamp": "1738564331",
+          "transaction": {
+            "blockNumber": "21764212"
+          },
+          "cex_price": "2529.757833",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.265624953",
+          "amount1": "-669.22987",
+          "sqrtPriceX96": "3974494672896421795818705",
+          "tick": "-198014",
+          "timestamp": "1738564883",
+          "transaction": {
+            "blockNumber": "21764258"
+          },
+          "cex_price": "2512.856333",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.251660768179485063",
+          "amount1": "-631.089698",
+          "sqrtPriceX96": "3962506821259547227945164",
+          "tick": "-198075",
+          "timestamp": "1738565459",
+          "transaction": {
+            "blockNumber": "21764305"
+          },
+          "cex_price": "2528.154",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.039938696082887632",
+          "amount1": "100",
+          "sqrtPriceX96": "3964405419468799072104831",
+          "tick": "-198065",
+          "timestamp": "1738565483",
+          "transaction": {
+            "blockNumber": "21764307"
+          },
+          "cex_price": "2526.295",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.492121653765575976",
+          "amount1": "1240.104482",
+          "sqrtPriceX96": "3987950020942485361003701",
+          "tick": "-197947",
+          "timestamp": "1738565795",
+          "transaction": {
+            "blockNumber": "21764333"
+          },
+          "cex_price": "2528.0875",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.065",
+          "amount1": "-164.473536",
+          "sqrtPriceX96": "3984825767191097394201814",
+          "tick": "-197962",
+          "timestamp": "1738565975",
+          "transaction": {
+            "blockNumber": "21764348"
+          },
+          "cex_price": "2525.64",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.039492662927909623",
+          "amount1": "100",
+          "sqrtPriceX96": "3986724365400349238361481",
+          "tick": "-197953",
+          "timestamp": "1738566083",
+          "transaction": {
+            "blockNumber": "21764357"
+          },
+          "cex_price": "2534.6545",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.078872587661647946",
+          "amount1": "200",
+          "sqrtPriceX96": "3990521561818852926680815",
+          "tick": "-197934",
+          "timestamp": "1738566551",
+          "transaction": {
+            "blockNumber": "21764396"
+          },
+          "cex_price": "2539.575",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.029538535737245287",
+          "amount1": "75",
+          "sqrtPriceX96": "3991945510475791809800565",
+          "tick": "-197927",
+          "timestamp": "1738566635",
+          "transaction": {
+            "blockNumber": "21764403"
+          },
+          "cex_price": "2543.296667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.057850458855420776",
+          "amount1": "147.040735",
+          "sqrtPriceX96": "3994737223225357918459979",
+          "tick": "-197913",
+          "timestamp": "1738566875",
+          "transaction": {
+            "blockNumber": "21764423"
+          },
+          "cex_price": "2550.144167",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.200057490652470615",
+          "amount1": "510.051295",
+          "sqrtPriceX96": "4004172574559547795640402",
+          "tick": "-197865",
+          "timestamp": "1738567199",
+          "transaction": {
+            "blockNumber": "21764450"
+          },
+          "cex_price": "2563.686667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.250625",
+          "amount1": "642.384368",
+          "sqrtPriceX96": "4016055932680736436488692",
+          "tick": "-197806",
+          "timestamp": "1738568123",
+          "transaction": {
+            "blockNumber": "21764527"
+          },
+          "cex_price": "2577.5935",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.044195911621055783",
+          "amount1": "113.675528",
+          "sqrtPriceX96": "4018158796753051579415916",
+          "tick": "-197796",
+          "timestamp": "1738568171",
+          "transaction": {
+            "blockNumber": "21764531"
+          },
+          "cex_price": "2581.6565",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.118352714065160707",
+          "amount1": "305",
+          "sqrtPriceX96": "4023800939390720527486932",
+          "tick": "-197768",
+          "timestamp": "1738568267",
+          "transaction": {
+            "blockNumber": "21764539"
+          },
+          "cex_price": "2580.811667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.011623324196748513",
+          "amount1": "30",
+          "sqrtPriceX96": "4024355904240327309264409",
+          "tick": "-197765",
+          "timestamp": "1738568339",
+          "transaction": {
+            "blockNumber": "21764545"
+          },
+          "cex_price": "2583.488833",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.107921339640062451",
+          "amount1": "278.951881",
+          "sqrtPriceX96": "4029652079656537413524959",
+          "tick": "-197739",
+          "timestamp": "1738568411",
+          "transaction": {
+            "blockNumber": "21764551"
+          },
+          "cex_price": "2591.7135",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.192732505787989475",
+          "amount1": "500",
+          "sqrtPriceX96": "4039145070702796634323295",
+          "tick": "-197691",
+          "timestamp": "1738568483",
+          "transaction": {
+            "blockNumber": "21764557"
+          },
+          "cex_price": "2603.808833",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.115205265466361209",
+          "amount1": "300",
+          "sqrtPriceX96": "4044840865330552166802296",
+          "tick": "-197663",
+          "timestamp": "1738568759",
+          "transaction": {
+            "blockNumber": "21764580"
+          },
+          "cex_price": "2598.719333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.01",
+          "amount1": "-26.047939",
+          "sqrtPriceX96": "4044346072212798989822655",
+          "tick": "-197666",
+          "timestamp": "1738568867",
+          "transaction": {
+            "blockNumber": "21764589"
+          },
+          "cex_price": "2608.136",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.0001",
+          "amount1": "-0.260447",
+          "sqrtPriceX96": "4044341124892938781593242",
+          "tick": "-197666",
+          "timestamp": "1738568975",
+          "transaction": {
+            "blockNumber": "21764598"
+          },
+          "cex_price": "2604.750833",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.114909638637198968",
+          "amount1": "300",
+          "sqrtPriceX96": "4050036919520694314072243",
+          "tick": "-197638",
+          "timestamp": "1738569131",
+          "transaction": {
+            "blockNumber": "21764611"
+          },
+          "cex_price": "2600.707333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.060901293967043316",
+          "amount1": "159.34073",
+          "sqrtPriceX96": "4053062159755021000401123",
+          "tick": "-197623",
+          "timestamp": "1738569431",
+          "transaction": {
+            "blockNumber": "21764636"
+          },
+          "cex_price": "2626.770167",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.026725823338614703",
+          "amount1": "70",
+          "sqrtPriceX96": "4054391178501497291312890",
+          "tick": "-197616",
+          "timestamp": "1738569827",
+          "transaction": {
+            "blockNumber": "21764669"
+          },
+          "cex_price": "2602.481333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.5",
+          "amount1": "-1300.739019",
+          "sqrtPriceX96": "4029683016679988648482114",
+          "tick": "-197738",
+          "timestamp": "1738569983",
+          "transaction": {
+            "blockNumber": "21764682"
+          },
+          "cex_price": "2589.7095",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.135005873406874629",
+          "amount1": "350",
+          "sqrtPriceX96": "4036328110412370103040949",
+          "tick": "-197705",
+          "timestamp": "1738570415",
+          "transaction": {
+            "blockNumber": "21764718"
+          },
+          "cex_price": "2600.72",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.383293104736833229",
+          "amount1": "1000",
+          "sqrtPriceX96": "4055314092504888544637621",
+          "tick": "-197612",
+          "timestamp": "1738570475",
+          "transaction": {
+            "blockNumber": "21764723"
+          },
+          "cex_price": "2602.455",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.571597588985213968",
+          "amount1": "-1485.938811",
+          "sqrtPriceX96": "4025894686998918406329015",
+          "tick": "-197757",
+          "timestamp": "1738570775",
+          "transaction": {
+            "blockNumber": "21764747"
+          },
+          "cex_price": "2578.465",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.03",
+          "amount1": "-77.406831",
+          "sqrtPriceX96": "4025056633355486245344539",
+          "tick": "-197761",
+          "timestamp": "1738571291",
+          "transaction": {
+            "blockNumber": "21764789"
+          },
+          "cex_price": "2562.545667",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.581660473895237321",
+          "amount1": "-1494.472277",
+          "sqrtPriceX96": "4008876563557834067281228",
+          "tick": "-197842",
+          "timestamp": "1738571363",
+          "transaction": {
+            "blockNumber": "21764795"
+          },
+          "cex_price": "2561.0435",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.375",
+          "amount1": "-957.141616",
+          "sqrtPriceX96": "3998513963730261856376521",
+          "tick": "-197894",
+          "timestamp": "1738571675",
+          "transaction": {
+            "blockNumber": "21764820"
+          },
+          "cex_price": "2544.239167",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.313585002417319796",
+          "amount1": "800.31774",
+          "sqrtPriceX96": "4004520383933001431499215",
+          "tick": "-197864",
+          "timestamp": "1738572515",
+          "transaction": {
+            "blockNumber": "21764889"
+          },
+          "cex_price": "2555.624167",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.390506062296351805",
+          "amount1": "1000",
+          "sqrtPriceX96": "4012025428371621171418562",
+          "tick": "-197826",
+          "timestamp": "1738572851",
+          "transaction": {
+            "blockNumber": "21764917"
+          },
+          "cex_price": "2570.547667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.41713291724477667",
+          "amount1": "1072.334184",
+          "sqrtPriceX96": "4020073344068774218966328",
+          "tick": "-197786",
+          "timestamp": "1738572959",
+          "transaction": {
+            "blockNumber": "21764926"
+          },
+          "cex_price": "2566.2515",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.451125",
+          "amount1": "1164.571265",
+          "sqrtPriceX96": "4028813503160544798349602",
+          "tick": "-197743",
+          "timestamp": "1738573367",
+          "transaction": {
+            "blockNumber": "21764959"
+          },
+          "cex_price": "2597.115167",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.193087126467489858",
+          "amount1": "500",
+          "sqrtPriceX96": "4032566025379854668309275",
+          "tick": "-197724",
+          "timestamp": "1738573499",
+          "transaction": {
+            "blockNumber": "21764970"
+          },
+          "cex_price": "2605.321333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-1.180480570700363954",
+          "amount1": "3077.230207",
+          "sqrtPriceX96": "4055660774824521051217271",
+          "tick": "-197610",
+          "timestamp": "1738573607",
+          "transaction": {
+            "blockNumber": "21764979"
+          },
+          "cex_price": "2611.057333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.711132958350553229",
+          "amount1": "-1856.105579",
+          "sqrtPriceX96": "4041723651407828603131291",
+          "tick": "-197679",
+          "timestamp": "1738573619",
+          "transaction": {
+            "blockNumber": "21764980"
+          },
+          "cex_price": "2613.201333",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.005",
+          "amount1": "-13.00518",
+          "sqrtPriceX96": "4041625998125982414650954",
+          "tick": "-197679",
+          "timestamp": "1738573955",
+          "transaction": {
+            "blockNumber": "21765008"
+          },
+          "cex_price": "2605.498333",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.007970578611363039",
+          "amount1": "-20.730462",
+          "sqrtPriceX96": "4041470337250683130037652",
+          "tick": "-197680",
+          "timestamp": "1738574171",
+          "transaction": {
+            "blockNumber": "21765026"
+          },
+          "cex_price": "2593.832167",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.040621274039295142",
+          "amount1": "-105.625973",
+          "sqrtPriceX96": "4040677213062060608583881",
+          "tick": "-197684",
+          "timestamp": "1738574219",
+          "transaction": {
+            "blockNumber": "21765030"
+          },
+          "cex_price": "2579.616167",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.730719876462170112",
+          "amount1": "-1893.007883",
+          "sqrtPriceX96": "4026462997663785857372795",
+          "tick": "-197754",
+          "timestamp": "1738574291",
+          "transaction": {
+            "blockNumber": "21765035"
+          },
+          "cex_price": "2577.180667",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.007146948150046739",
+          "amount1": "18.468901",
+          "sqrtPriceX96": "4026601607582397240964508",
+          "tick": "-197754",
+          "timestamp": "1738574447",
+          "transaction": {
+            "blockNumber": "21765048"
+          },
+          "cex_price": "2572.771667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.1",
+          "amount1": "-258.042906",
+          "sqrtPriceX96": "4024664015309162947273298",
+          "tick": "-197763",
+          "timestamp": "1738574639",
+          "transaction": {
+            "blockNumber": "21765063"
+          },
+          "cex_price": "2587.039",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.084713546130407735",
+          "amount1": "218.8",
+          "sqrtPriceX96": "4026306119032332946367651",
+          "tick": "-197755",
+          "timestamp": "1738574651",
+          "transaction": {
+            "blockNumber": "21765064"
+          },
+          "cex_price": "2587.6415",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.077374259263770829",
+          "amount1": "200",
+          "sqrtPriceX96": "4027807127920056894351520",
+          "tick": "-197748",
+          "timestamp": "1738574903",
+          "transaction": {
+            "blockNumber": "21765085"
+          },
+          "cex_price": "2589.649833",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.386007872777809297",
+          "amount1": "1000",
+          "sqrtPriceX96": "4035312172358676634270867",
+          "tick": "-197710",
+          "timestamp": "1738574987",
+          "transaction": {
+            "blockNumber": "21765092"
+          },
+          "cex_price": "2595.1525",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.04",
+          "amount1": "-103.69411",
+          "sqrtPriceX96": "4034533554140548480162591",
+          "tick": "-197714",
+          "timestamp": "1738575383",
+          "transaction": {
+            "blockNumber": "21765124"
+          },
+          "cex_price": "2589.571333",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.07705906819180436",
+          "amount1": "200",
+          "sqrtPriceX96": "4036034563028272428146460",
+          "tick": "-197707",
+          "timestamp": "1738575503",
+          "transaction": {
+            "blockNumber": "21765133"
+          },
+          "cex_price": "2596.684667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.024709449316103127",
+          "amount1": "64.162706",
+          "sqrtPriceX96": "4036516106983246328716490",
+          "tick": "-197704",
+          "timestamp": "1738575947",
+          "transaction": {
+            "blockNumber": "21765170"
+          },
+          "cex_price": "2584.418833",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.029369242932187002",
+          "amount1": "-76.184778",
+          "sqrtPriceX96": "4035944050806627779702669",
+          "tick": "-197707",
+          "timestamp": "1738576031",
+          "transaction": {
+            "blockNumber": "21765177"
+          },
+          "cex_price": "2585.869",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.808364375",
+          "amount1": "-2088.479895",
+          "sqrtPriceX96": "4020262075397417811500141",
+          "tick": "-197785",
+          "timestamp": "1738576079",
+          "transaction": {
+            "blockNumber": "21765181"
+          },
+          "cex_price": "2585.821",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.566208656934517115",
+          "amount1": "1462.60634",
+          "sqrtPriceX96": "4031239000966777278562304",
+          "tick": "-197731",
+          "timestamp": "1738576199",
+          "transaction": {
+            "blockNumber": "21765191"
+          },
+          "cex_price": "2591.6255",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.385351530482113528",
+          "amount1": "1000",
+          "sqrtPriceX96": "4038744045405397018481651",
+          "tick": "-197693",
+          "timestamp": "1738576427",
+          "transaction": {
+            "blockNumber": "21765210"
+          },
+          "cex_price": "2583.996833",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.472867727221910848",
+          "amount1": "-1225.364894",
+          "sqrtPriceX96": "4029543026910912544055791",
+          "tick": "-197739",
+          "timestamp": "1738576475",
+          "transaction": {
+            "blockNumber": "21765214"
+          },
+          "cex_price": "2580.055",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.402055207079568883",
+          "amount1": "-1037.481809",
+          "sqrtPriceX96": "4021752784706757619106539",
+          "tick": "-197778",
+          "timestamp": "1738576799",
+          "transaction": {
+            "blockNumber": "21765241"
+          },
+          "cex_price": "2580.582",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.095",
+          "amount1": "-244.556739",
+          "sqrtPriceX96": "4019916457347783285848593",
+          "tick": "-197787",
+          "timestamp": "1738577219",
+          "transaction": {
+            "blockNumber": "21765276"
+          },
+          "cex_price": "2571.087667",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.230742926369996932",
+          "amount1": "594.980368",
+          "sqrtPriceX96": "4024381811443602432266030",
+          "tick": "-197765",
+          "timestamp": "1738577915",
+          "transaction": {
+            "blockNumber": "21765333"
+          },
+          "cex_price": "2574.021667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.476659749737404867",
+          "amount1": "1233.282517",
+          "sqrtPriceX96": "4033637651526897473945600",
+          "tick": "-197719",
+          "timestamp": "1738578383",
+          "transaction": {
+            "blockNumber": "21765372"
+          },
+          "cex_price": "2592.896667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.16",
+          "amount1": "-414.324614",
+          "sqrtPriceX96": "4031313140151181746034416",
+          "tick": "-197730",
+          "timestamp": "1738578659",
+          "transaction": {
+            "blockNumber": "21765395"
+          },
+          "cex_price": "2595.006333",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.043308561588129089",
+          "amount1": "112.205869",
+          "sqrtPriceX96": "4032155250183808864788728",
+          "tick": "-197726",
+          "timestamp": "1738578863",
+          "transaction": {
+            "blockNumber": "21765412"
+          },
+          "cex_price": "2595.919333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.86611937214226278",
+          "amount1": "2248.195782",
+          "sqrtPriceX96": "4038151609579739512896741",
+          "tick": "-197696",
+          "timestamp": "1738578995",
+          "transaction": {
+            "blockNumber": "21765423"
+          },
+          "cex_price": "2606.695833",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.956023322260592106",
+          "amount1": "2488.353784",
+          "sqrtPriceX96": "4043924002358912173998080",
+          "tick": "-197668",
+          "timestamp": "1738579067",
+          "transaction": {
+            "blockNumber": "21765429"
+          },
+          "cex_price": "2609.025667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.003",
+          "amount1": "-7.805218",
+          "sqrtPriceX96": "4042212203349588765560270",
+          "tick": "-197676",
+          "timestamp": "1738579079",
+          "transaction": {
+            "blockNumber": "21765430"
+          },
+          "cex_price": "2609.389667",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.190364927448756291",
+          "amount1": "-495.5563",
+          "sqrtPriceX96": "4042773853767504808144148",
+          "tick": "-197674",
+          "timestamp": "1738579079",
+          "transaction": {
+            "blockNumber": "21765430"
+          },
+          "cex_price": "2609.389667",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.09",
+          "amount1": "-234.189081",
+          "sqrtPriceX96": "4042230318669144211676346",
+          "tick": "-197676",
+          "timestamp": "1738579079",
+          "transaction": {
+            "blockNumber": "21765430"
+          },
+          "cex_price": "2609.389667",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.04965654102183457",
+          "amount1": "129.331689",
+          "sqrtPriceX96": "4042512222306567211467484",
+          "tick": "-197675",
+          "timestamp": "1738579163",
+          "transaction": {
+            "blockNumber": "21765437"
+          },
+          "cex_price": "2605.102",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.003533423607932933",
+          "amount1": "9.203621",
+          "sqrtPriceX96": "4042533572532027303532038",
+          "tick": "-197675",
+          "timestamp": "1738579235",
+          "transaction": {
+            "blockNumber": "21765443"
+          },
+          "cex_price": "2608.2725",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "0.847631761520580608",
+          "amount1": "-2202.868196",
+          "sqrtPriceX96": "4037420882508902536648710",
+          "tick": "-197700",
+          "timestamp": "1738579379",
+          "transaction": {
+            "blockNumber": "21765455"
+          },
+          "cex_price": "2596.530167",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.095621122775387951",
+          "amount1": "-248.155303",
+          "sqrtPriceX96": "4036844932868210422524939",
+          "tick": "-197703",
+          "timestamp": "1738579643",
+          "transaction": {
+            "blockNumber": "21765477"
+          },
+          "cex_price": "2598.206667",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.003715992311676302",
+          "amount1": "9.652047",
+          "sqrtPriceX96": "4036867323334200666633252",
+          "tick": "-197703",
+          "timestamp": "1738579679",
+          "transaction": {
+            "blockNumber": "21765480"
+          },
+          "cex_price": "2600.846667",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.10518929485760834",
+          "amount1": "273.266707",
+          "sqrtPriceX96": "4037501237519885184099582",
+          "tick": "-197700",
+          "timestamp": "1738579739",
+          "transaction": {
+            "blockNumber": "21765485"
+          },
+          "cex_price": "2596.888333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.230459179427693115",
+          "amount1": "599",
+          "sqrtPriceX96": "4038890775975895531408904",
+          "tick": "-197693",
+          "timestamp": "1738579907",
+          "transaction": {
+            "blockNumber": "21765498"
+          },
+          "cex_price": "2605.562167",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.96561109480082811",
+          "amount1": "2514.265896",
+          "sqrtPriceX96": "4044723278730312640626688",
+          "tick": "-197664",
+          "timestamp": "1738580123",
+          "transaction": {
+            "blockNumber": "21765516"
+          },
+          "cex_price": "2609.083333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-1.078549927995798026",
+          "amount1": "2816.936093",
+          "sqrtPriceX96": "4051257904820068066263040",
+          "tick": "-197632",
+          "timestamp": "1738580327",
+          "transaction": {
+            "blockNumber": "21765533"
+          },
+          "cex_price": "2613.0785",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.235402624995581444",
+          "amount1": "616.0306",
+          "sqrtPriceX96": "4052686950242114751335181",
+          "tick": "-197625",
+          "timestamp": "1738580351",
+          "transaction": {
+            "blockNumber": "21765535"
+          },
+          "cex_price": "2611.812",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.009240187339184395",
+          "amount1": "24.110479",
+          "sqrtPriceX96": "4046099037612187938987297",
+          "tick": "-197657",
+          "timestamp": "1738580447",
+          "transaction": {
+            "blockNumber": "21765543"
+          },
+          "cex_price": "2605.271",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "1.096380323726610944",
+          "amount1": "-2862.585237",
+          "sqrtPriceX96": "4046043106999990848385507",
+          "tick": "-197657",
+          "timestamp": "1738580447",
+          "transaction": {
+            "blockNumber": "21765543"
+          },
+          "cex_price": "2605.271",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "0.862653328241437696",
+          "amount1": "-2245.81053",
+          "sqrtPriceX96": "4040886681690113380015888",
+          "tick": "-197683",
+          "timestamp": "1738580639",
+          "transaction": {
+            "blockNumber": "21765559"
+          },
+          "cex_price": "2597.183333",
+          "token_in": "token0"
+        },
+        {
+          "amount0": "-0.003458031046491749",
+          "amount1": "9",
+          "sqrtPriceX96": "4040907559563409027972121",
+          "tick": "-197683",
+          "timestamp": "1738580963",
+          "transaction": {
+            "blockNumber": "21765586"
+          },
+          "cex_price": "2602.829333",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.14405287134466809",
+          "amount1": "375",
+          "sqrtPriceX96": "4041777470950727692815186",
+          "tick": "-197678",
+          "timestamp": "1738581071",
+          "transaction": {
+            "blockNumber": "21765595"
+          },
+          "cex_price": "2599.922",
+          "token_in": "token1"
+        },
+        {
+          "amount0": "-0.021316286741643499",
+          "amount1": "55.504504",
+          "sqrtPriceX96": "4041906228282530506561128",
+          "tick": "-197678",
+          "timestamp": "1738581179",
+          "transaction": {
+            "blockNumber": "21765604"
+          },
+          "cex_price": "2595.752333",
           "token_in": "token1"
         }
       ]
