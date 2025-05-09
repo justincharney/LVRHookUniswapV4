@@ -33,16 +33,18 @@ contract ReplayV4Swaps is Test, Fixtures {
 
     /* ---------- swap struct that matches the JSON -------------- */
     struct RawSwap {
-        string amount0;
-        string amount1;
-        string sqrtPriceX96;
-        string tick;
-        Transaction transaction;
+        string amount0; // “amount0”
+        string amount1; // “amount1”
+        string cex_price; // “cex_price”
+        string sqrtPriceX96; // “sqrtPriceX96”
+        string tick; // “tick”
+        string timestamp; // “timestamp”
+        string token_in; // “token_in”
+        Transaction transaction; // “transaction”
     }
 
     struct Transaction {
         string blockNumber;
-        string timestamp;
     }
 
     /* ---------- Metrics from the swaps -------------- */
@@ -60,6 +62,7 @@ contract ReplayV4Swaps is Test, Fixtures {
         int24 carry;
         uint256 expectedUsdcPrice;
         uint256 actualUsdcPrice;
+        uint256 cexPrice;
     }
     SwapMetrics[] public swaps;
 
@@ -174,7 +177,7 @@ contract ReplayV4Swaps is Test, Fixtures {
     /* ---------- the actual replay test ------------------------- */
     function test_replaySwaps() public {
         /* 1. read file */
-        string memory json = vm.readFile("./swaps-v4.json");
+        string memory json = vm.readFile("./v4_swaps_with_cex.json");
 
         bytes memory arr = json.parseRaw(".data.pool.swaps"); // returns the ABI-encoded array
         RawSwap[] memory rswaps = abi.decode(arr, (RawSwap[]));
@@ -469,6 +472,9 @@ contract ReplayV4Swaps is Test, Fixtures {
         // Actual price uses the sqrtPriceX96 read from the local pool *after* executing the swap
         uint256 actualPrice = _calculateUsdcPrice(postSqrtPrice);
 
+        // THis is a float with 4 decimals. How can I parse
+        uint256 cexPrice = uint256(_stringToFixed(recordedSwap.cex_price, 6));
+
         swaps.push(
             SwapMetrics({
                 blk: blk,
@@ -483,7 +489,8 @@ contract ReplayV4Swaps is Test, Fixtures {
                 actualFee: postFee,
                 carry: carry,
                 expectedUsdcPrice: expectedPrice,
-                actualUsdcPrice: actualPrice
+                actualUsdcPrice: actualPrice,
+                cexPrice: cexPrice
             })
         );
     }
@@ -509,7 +516,7 @@ contract ReplayV4Swaps is Test, Fixtures {
         string memory path = "./storage/metrics.csv";
         vm.writeFile(
             path,
-            "idx,blk,expected_fee,actual_fee,carry,expected_price,actual_price,expected_tickAfter,actual_tickAfter\n"
+            "idx,blk,expected_fee,actual_fee,carry,expected_price,actual_price,cex_price\n"
         );
         for (uint i; i < swaps.length; ++i) {
             vm.writeLine(
@@ -529,9 +536,7 @@ contract ReplayV4Swaps is Test, Fixtures {
                     ",",
                     vm.toString(swaps[i].actualUsdcPrice),
                     ",",
-                    vm.toString(swaps[i].expectedTickAfter),
-                    ",",
-                    vm.toString(swaps[i].tickAfter)
+                    vm.toString(swaps[i].cexPrice)
                 )
             );
         }
