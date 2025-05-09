@@ -47,6 +47,7 @@ contract ReplayV4Swaps is Test, Fixtures {
 
     /* ---------- Metrics from the swaps -------------- */
     struct SwapMetrics {
+        uint256 blk;
         int128 amount0;
         int128 amount1;
         uint160 sqrtPriceBefore;
@@ -283,8 +284,12 @@ contract ReplayV4Swaps is Test, Fixtures {
         );
 
         for (uint i; i < tickKeys.length; ++i) {
+            // skip metadata entry "__L"
+            bytes memory key = bytes(tickKeys[i]);
+            if (key.length > 0 && key[0] == "_") {
+                continue;
+            }
             int24 tick = int24(vm.parseInt(tickKeys[i]));
-
             // Construct the full path from the root of tickFile
             string memory tickSpecificPath = string.concat(
                 blockPath,
@@ -316,7 +321,19 @@ contract ReplayV4Swaps is Test, Fixtures {
             );
         }
 
-        // 3b. bitmap words
+        // 3b. apply the active-liquidity snapshot (“__L”)
+        // {
+        //     // parse the JSON string at blockPath.__L
+        //     string memory Lpath = string.concat(blockPath, ".__L");
+        //     uint256 L = vm.parseUint(vm.parseJsonString(tickFile, Lpath));
+        //     // compute the pool-state liquidity slot = S + 3
+        //     bytes32 liquiditySlot = bytes32(
+        //         uint256(StateLibrary._getPoolStateSlot(poolId)) + 3
+        //     );
+        //     vm.store(address(manager), liquiditySlot, bytes32(L));
+        // }
+
+        // 3c. bitmap words
         string[] memory bmKeys = vm.parseJsonKeys(bitmapFile, blockPath);
         bytes32 bitmapBase = bytes32(
             uint256(StateLibrary._getPoolStateSlot(poolId)) + 5
@@ -416,6 +433,11 @@ contract ReplayV4Swaps is Test, Fixtures {
         int24 preTick,
         RawSwap memory recordedSwap
     ) internal {
+        // Get the block
+        uint256 blk = uint256(
+            vm.parseInt(recordedSwap.transaction.blockNumber)
+        );
+
         // Get current state (post-swap)
         (uint160 postSqrtPrice, int24 postTick, , uint24 postFee) = manager
             .getSlot0(poolId);
@@ -438,6 +460,7 @@ contract ReplayV4Swaps is Test, Fixtures {
 
         swaps.push(
             SwapMetrics({
+                blk: blk,
                 amount0: delta.amount0(),
                 amount1: delta.amount1(),
                 sqrtPriceBefore: preSqrtPrice,
@@ -475,13 +498,15 @@ contract ReplayV4Swaps is Test, Fixtures {
         string memory path = "./storage/metrics.csv";
         vm.writeFile(
             path,
-            "idx,expected_fee,actual_fee,carry,expected_price,actual_price,expected_tickAfter,actual_tickAfter\n"
+            "idx,blk,expected_fee,actual_fee,carry,expected_price,actual_price,expected_tickAfter,actual_tickAfter\n"
         );
         for (uint i; i < swaps.length; ++i) {
             vm.writeLine(
                 path,
                 string.concat(
                     vm.toString(i),
+                    ",",
+                    vm.toString(swaps[i].blk),
                     ",",
                     vm.toString(swaps[i].expectedFee),
                     ",",
