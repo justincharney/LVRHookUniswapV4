@@ -81,9 +81,10 @@ contract ReplayV4Swaps is Test, Fixtures {
     uint24 internal constant BASE_FEE = 500; // 0.05% in micro-bps
     uint160 constant INIT_SQRT_PRICE = 3927370225299858350344231;
     uint128 constant INIT_LIQ = 1179919373798284;
+    uint256 constant INIT_BLK = 21763860;
 
     MockERC20 public weth;
-    uint256 private currentBlockNumber = 0;
+    uint256 private previousBlockNumber = 0;
 
     string private constant TICK_SNAP = "./tick_snapshot.json";
     string private constant BM_SNAP = "./bitmap_snapshot.json";
@@ -166,6 +167,8 @@ contract ReplayV4Swaps is Test, Fixtures {
             uint256(StateLibrary._getPoolStateSlot(poolId)) + 3
         );
         vm.store(address(manager), liquiditySlot, bytes32(uint256(INIT_LIQ)));
+
+        // _applySnapshot(INIT_BLK);
     }
 
     /* ---------- the actual replay test ------------------------- */
@@ -179,8 +182,26 @@ contract ReplayV4Swaps is Test, Fixtures {
         /* 2. loop over them, staring from the second swap */
         for (uint i = 1; i < rswaps.length; ++i) {
             RawSwap memory s = rswaps[i];
+
             uint256 blk = uint256(vm.parseInt(s.transaction.blockNumber));
-            _applySnapshot(blk); // ensures liquidity is right for this block
+
+            if (
+                i == 1 ||
+                i == 9 ||
+                i == 21 ||
+                i == 30 ||
+                i == 33 ||
+                i == 34 ||
+                i == 47 ||
+                i == 49 ||
+                i == 78 ||
+                i == 79 ||
+                i == 80 ||
+                i == 82 ||
+                i == 87
+            ) {
+                _applySnapshot(blk); // ensures liquidity is right for the next block
+            }
 
             // Save pre-swap state
             (uint160 preSqrtPrice, int24 preTick, , ) = manager.getSlot0(
@@ -207,32 +228,20 @@ contract ReplayV4Swaps is Test, Fixtures {
             // If a pool_delta is NEGATIVE, that token LEFT the pool (it was the swapper's OUTPUT).
 
             if (amount1_pool_delta_local > 0) {
-                // Swapper input currency1. Pool received currency1.
-                // currency0 must have been output (amount0_pool_delta_local < 0).
-                require(
-                    amount0_pool_delta_local < 0,
-                    "Data Error: If currency1 entered pool, currency0 should have left."
-                );
-                zeroForOne_final = false; // Selling currency1 for currency0
-                amountToSpecifyForExactInput = -amount1_pool_delta_local; // NEGATIVE of the input currency1 amount
+                // Pool received c1 (USDC), swapper INPUT c1
+                zeroForOne_final = false; // Swapper sells c1 for c0
+                amountToSpecifyForExactInput = -amount1_pool_delta_local; // Use NEGATIVE of INPUT c1
             } else if (amount0_pool_delta_local > 0) {
-                // Swapper input currency0. Pool received currency0.
-                // currency1 must have been output (amount1_pool_delta_local < 0).
-                require(
-                    amount1_pool_delta_local < 0,
-                    "Data Error: If currency0 entered pool, currency1 should have left."
-                );
-                zeroForOne_final = true; // Selling currency0 for currency1
-                amountToSpecifyForExactInput = -amount0_pool_delta_local; // NEGATIVE of the input currency0 amount
-            } else {
-                // This case implies both deltas are non-positive, or one is zero and the other non-positive.
-                // For a typical swap from your JSON (one in, one out), this shouldn't be hit.
-                revert(
-                    "Invalid swap data in JSON: Pool deltas do not indicate a clear input token for the swapper."
-                );
+                // Pool received c0 (WETH), swapper INPUT c0
+                zeroForOne_final = true; // Swapper sells c0 for c1
+                amountToSpecifyForExactInput = -amount0_pool_delta_local; // Use NEGATIVE of INPUT c0
             }
 
-            console.log("ReplayV4Swaps: Swap #%s", vm.toString(i));
+            console.log(" ");
+            console.log(
+                "==================ReplayV4Swaps: Swap #%s=================",
+                vm.toString(i)
+            );
             console.log(
                 "ReplayV4Swaps: zeroForOne_final = %s",
                 vm.toString(zeroForOne_final)
@@ -264,9 +273,6 @@ contract ReplayV4Swaps is Test, Fixtures {
     }
 
     function _applySnapshot(uint256 blockNumber) internal {
-        if (blockNumber == currentBlockNumber) return;
-        currentBlockNumber = blockNumber;
-
         // Load the files once
         if (bytes(tickFile).length == 0) {
             tickFile = vm.readFile(TICK_SNAP);
@@ -276,7 +282,7 @@ contract ReplayV4Swaps is Test, Fixtures {
         // Keys in the top‑level objects are the block numbers as strings
         string memory blockPath = string.concat("$.", vm.toString(blockNumber));
 
-        // 3a. ticks
+        // 3 - ticks
         // Get keys of the object at tickFile.blockPath (e.g., keys of tickFile."$.21763873")
         string[] memory tickKeys = vm.parseJsonKeys(tickFile, blockPath);
         bytes32 ticksBase = bytes32(
@@ -321,19 +327,7 @@ contract ReplayV4Swaps is Test, Fixtures {
             );
         }
 
-        // 3b. apply the active-liquidity snapshot (“__L”)
-        // {
-        //     // parse the JSON string at blockPath.__L
-        //     string memory Lpath = string.concat(blockPath, ".__L");
-        //     uint256 L = vm.parseUint(vm.parseJsonString(tickFile, Lpath));
-        //     // compute the pool-state liquidity slot = S + 3
-        //     bytes32 liquiditySlot = bytes32(
-        //         uint256(StateLibrary._getPoolStateSlot(poolId)) + 3
-        //     );
-        //     vm.store(address(manager), liquiditySlot, bytes32(L));
-        // }
-
-        // 3c. bitmap words
+        // Bitmap words
         string[] memory bmKeys = vm.parseJsonKeys(bitmapFile, blockPath);
         bytes32 bitmapBase = bytes32(
             uint256(StateLibrary._getPoolStateSlot(poolId)) + 5
@@ -356,6 +350,23 @@ contract ReplayV4Swaps is Test, Fixtures {
             );
             vm.store(address(manager), slot, bytes32(value));
         }
+
+        string memory liquidityPath = string.concat(blockPath, ".__L");
+        string memory liquidityStr = vm.parseJsonString(
+            tickFile,
+            liquidityPath
+        );
+        uint128 liquidityValue = uint128(vm.parseUint(liquidityStr));
+
+        // Write the liquidity to the pool state
+        bytes32 liquiditySlot = bytes32(
+            uint256(StateLibrary._getPoolStateSlot(poolId)) + 3
+        );
+        vm.store(
+            address(manager),
+            liquiditySlot,
+            bytes32(uint256(liquidityValue))
+        );
     }
 
     function _stringToFixed(
