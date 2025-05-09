@@ -53,7 +53,7 @@ def fetch_all_prices(start_time, end_time, product_id="ETH-USD"):
 
 # Times for v4
 start = datetime.fromisoformat("2025-02-03T00:00:00")
-end = datetime.fromisoformat("2025-02-04T00:00:00")
+end = datetime.fromisoformat("2025-02-05T00:00:00")
 
 # Run
 df = fetch_all_prices(start, end)
@@ -68,6 +68,6 @@ df_interp = df_interp.rename(columns={"close": "cex_price"})                    
 df_interp = df_interp[["cex_timestamp", "cex_price"]]                           # Final DF
 
 # Save interpolated data
-df_interp.to_csv("v4_eth_usdc_coinbase_prices_1s.csv", index=False)
+df_interp.to_csv("refining/v4/v4_eth_usdc_coinbase_prices_1s.csv", index=False)
 print("Saved interpolated CEX prices:")
 print(df_interp.head())

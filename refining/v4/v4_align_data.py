@@ -9,11 +9,11 @@ Outputs swap data with corresponding CEX price.
 '''
 
 # Loads CEX data and sets timestamp as index
-cex_df = pd.read_csv("refining/v4_eth_usdc_coinbase_prices_1s.csv")
+cex_df = pd.read_csv("refining/v4/v4_eth_usdc_coinbase_prices_1s.csv")
 cex_df.set_index("cex_timestamp", inplace=True)
 
 # Loads uniswap v3 swap data
-with open("./v4_swaps_with_timestamp.json") as f:
+with open("refining/v4/v4_swaps_with_timestamp.json") as f:
     swap_data = json.load(f)
 
 # Extracts relevant info
